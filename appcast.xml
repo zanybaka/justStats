@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  justStats appcast — Sparkle update feed, served over HTTPS from
+  https://raw.githubusercontent.com/zanybaka/justStats/main/appcast.xml
+  (matches SUFeedURL in justStats/Info.plist). Newest release FIRST.
+  To add a release: see docs/release-checklist.md.
+-->
+<rss version="2.0"
+     xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle"
+     xmlns:dc="http://purl.org/dc/elements/1.1/">
+  <channel>
+    <title>justStats</title>
+    <link>https://raw.githubusercontent.com/zanybaka/justStats/main/appcast.xml</link>
+    <description>Update feed for justStats, a native macOS menu bar disk monitor.</description>
+    <language>en</language>
+    <item>
+      <title>Version 1.0.0</title>
+      <sparkle:version>8</sparkle:version>
+      <sparkle:shortVersionString>1.0.0</sparkle:shortVersionString>
+      <sparkle:minimumSystemVersion>15.0</sparkle:minimumSystemVersion>
+      <pubDate>Sun, 05 Jul 2026 23:43:19 +0300</pubDate>
+      <description><![CDATA[
+        <ul>
+          <li>First public release: menu bar disk monitor with colored status icon, per-volume category breakdown and largest files, quick file actions, thresholds, and Launch at Login.</li>
+        </ul>
+      ]]></description>
+      <enclosure
+        url="https://github.com/zanybaka/justStats/releases/download/v1.0.0/justStats.zip"
+        sparkle:version="8"
+        sparkle:shortVersionString="1.0.0"
+        sparkle:edSignature="6JBU+4xsaD68BX6Otdf74tgoma5liEOzerz8+NbToKWOg/XK/bfDWjeCyZNORgFV/jLirjYpdqMWm75oAGHaCA=="
+        length="1956275"
+        type="application/octet-stream" />
+    </item>
+  </channel>
+</rss>

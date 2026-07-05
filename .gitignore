@@ -1,0 +1,32 @@
+# Project-local
+/.cursor/rules/writing-style.mdc
+/AGENTS.md
+
+# macOS
+.DS_Store
+
+# Xcode
+build/
+DerivedData/
+*.xcresult
+
+# Xcode user state (keep xcshareddata tracked)
+xcuserdata/
+*.xcuserstate
+
+# Swift Package Manager
+.build/
+.swiftpm/
+
+# Packaging output
+dist/
+
+# Secrets — Sparkle EdDSA private key must never be committed (TECHSPEC §6, UPD-004).
+# Only the SUPublicEDKey in Info.plist is public; keep any exported private key out of git.
+*.pem
+*.p12
+*.key
+*_private_key*
+*private_key*
+dsa_priv.pem
+sparkle_private*
