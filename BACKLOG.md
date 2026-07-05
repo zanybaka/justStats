@@ -421,7 +421,7 @@ Depends on:
 Agent: auto
 Verify: run each tasks.json task; run scripts/package.sh and confirm the zip
 
-- [ ] REL-005 Cut first GitHub Release (v1.0.0)
+- [x] REL-005 Cut first GitHub Release (v1.0.0)
 Task Context: Per `docs/release-checklist.md`: bump version, build Release `.app`, `ditto` to `.zip`, sign with `sign_update`, `gh release create` with the asset, add the signed `appcast.xml` `<item>`, push. Requires REL-001 (key) and a passing REL-002 verdict (or documented fallback).
 Task DOD: A v1.0.0 GitHub Release exists with a `.zip` asset and a matching signed appcast entry served from `raw.githubusercontent.com`.
 Priority: P2
