@@ -1,0 +1,35 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  build-test:
+    # Xcode 26.x image. The pbxproj is Xcode-16+ format, so `macos-15`
+    # (Xcode 16.x) also works as a fallback if macos-26 is unavailable.
+    runs-on: macos-26
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Select Xcode
+        run: |
+          # Prefer the newest Xcode 26.x installed on the runner.
+          XCODE_APP=$(ls -d /Applications/Xcode_26*.app 2>/dev/null | sort -V | tail -1)
+          if [ -n "$XCODE_APP" ]; then
+            sudo xcode-select -s "$XCODE_APP/Contents/Developer"
+          fi
+          xcodebuild -version
+
+      - name: Build and test
+        run: |
+          xcodebuild \
+            -project justStats.xcodeproj \
+            -scheme justStats \
+            -destination 'platform=macOS' \
+            build test \
+            CODE_SIGNING_ALLOWED=NO
