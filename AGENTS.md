@@ -37,19 +37,25 @@ Cursor merges **two** locations; you do **not** need copies inside every repo.
 
 When you need the text of a command template, read **`~/.cursor/commands/<name>.md`** if the workspace has no copy under `.cursor/commands/`. Same basenames everywhere.
 
-| Flow                   | Template file                     |
-| ---------------------- | --------------------------------- |
-| PRD                    | `make-prd.md`                     |
-| TECHSPEC               | `make-techspec.md`                |
-| Backlog                | `make-backlog.md`                 |
-| Single task            | `implement-a-single-task.md`      |
-| Architecture draft     | `make-architecture-draft.md`      |
-| Refactoring from blob  | `make-a-refactoring-from-blob.md` |
-| Commit                 | `commit.md`                       |
-| Blob script            | `create-blob-script.md`           |
-| AI task init           | `initialize-ai-task.md`           |
-| AI task teamlead       | `ai-task-teamlead.md`             |
-| Inner source readiness | `ati-inner-source-check.md`       |
+| Flow                   | Template file                                 |
+| ---------------------- | --------------------------------------------- |
+| PRD                    | `make-prd.md`                                 |
+| TECHSPEC               | `make-techspec.md`                            |
+| Backlog                | `make-backlog.md`                             |
+| Single task            | `implement-a-single-task.md`                  |
+| Architecture draft     | `make-architecture-draft.md`                  |
+| Refactoring from blob  | `make-a-refactoring-from-blob.md`             |
+| Commit                 | `commit.md`                                   |
+| Blob script            | `create-blob-script.md`                       |
+| AI task init           | `initialize-ai-task.md`                       |
+| AI task teamlead       | `ai-task-teamlead.md`                         |
+| AI task retro          | `ai-task-retro.md`                            |
+| AI task ops            | `ai-task-ops.md`                              |
+| Backlog rotate         | `backlog-rotate.md`                           |
+| Inner source readiness | `ati-inner-source-check.md`                   |
+| Matreshka scenario     | `generate-matreshka-scenario.md`              |
+| Matreshka via question | `generate-matreshka-scenario-via-question.md` |
+| PDF to Markdown        | `pdf-to-markdown.md`                          |
 
 ## Skill Routing
 
@@ -61,17 +67,21 @@ When you need the text of a command template, read **`~/.cursor/commands/<name>.
 - Use "ai-task-product" for ai-task discovery, PRD/TECHSPEC shaping, backlog metadata, priorities, dependencies, DoR fixes, and task splitting before delivery.
 - Use "ai-task-teamlead" for opt-in `.ai-task` delivery in iterative waves (plan batch → run → review → next wave), status, and verdict coordination after backlog/DoR is ready. Do not use it for discovery, backlog shaping, or DoR authoring.
 - Use "ai-task-maintainer" only when designing or extending `ai-task` (CLI, policy, supervision), not for daily runs.
+- Use "ai-task-reviewer" for stack-aware code review after `ai-task` verify (three passes, structured review findings), then hand the result back to "ai-task-teamlead" for the verdict.
+- Use "ai-task-retro" for an interactive decision retrospective after a large ai-task batch (review teamlead judgment, improve skills, add backlog tasks). Not for delivery runs ("ai-task-teamlead") or discovery ("ai-task-product").
+- Use "ai-task-ops" for the post-release operations stage once a delivered service is live: watch production signals (heartbeat/capacity/expiry/error-budget), triage incidents, and turn each incident or monitoring signal into a backlog task with `Source:`/`Incident:` provenance and a lessons-learned post-mortem. Not for delivery waves ("ai-task-teamlead"), discovery ("ai-task-product"), or decision retro ("ai-task-retro").
 - Use "contract-change-guard" when APIs/contracts/schemas may change.
 - Use "verification-and-dod" before handover to validate checks and DoD coverage.
 - Use "project-documentation-updater" after delivery to update "CHANGELOG.md", "ADR/\*.md", and task reports.
 - Use "commit-current-changes" when the user asks to commit current staged or unstaged changes.
 - Use "adr-skill" when creating or promoting an ADR (intent interview, MADR/simple templates, implementation plan, agent-readiness review). Synced from `third_party/adr-skill` via `third-party-skills.json`.
 - Use "solution-architecture-draft" for architecture-committee-ready draft generation.
-- Use the "engineering:system-design" / "engineering:architecture" plugin skills for substantive system design depth (API shape, data stores, queues, service boundaries); repo skills keep the artifact formats (`docs/techspec.md`, architecture draft, `ADR-CANDIDATE`).
-- Use the "engineering:system-design" plugin skill for infra topology, image strategy, and IaC decisions (analysis) plus "adr-skill" for the record; "ati-k8s-skill" owns ATI deploy mechanics only.
+- For substantive system design depth (API shape, data stores, queues, service boundaries), route to an engineering plugin skill such as "engineering:system-design" or "engineering:architecture" when that plugin is installed; otherwise stay in "techspec-interview" and "solution-architecture-draft". Either way, repo skills keep the artifact formats (`docs/techspec.md`, architecture draft, `ADR-CANDIDATE`).
+- For infra topology, image strategy, and IaC decisions, use the same "engineering:system-design" plugin skill when installed for analysis, plus "adr-skill" for the record. A dedicated ATI Kubernetes deploy skill, where present, owns ATI deploy mechanics only.
 - Use "refactoring-from-blob" for evidence-based refactoring analysis from concatenated snapshots.
 - Use "add-backlog-task" to insert one implementation-ready task into "BACKLOG.md".
 - Use "retroactive-backlog" when documenting already-shipped work: follow "add-backlog-task" for task block format (retro overrides in that skill), update "CHANGELOG.md", commit docs separately from code.
+- Use "backlog-rotate" for backlog hygiene: archive only closed (`- [x]`) tasks into a numbered archive, keep open and deferred tasks in place, and refresh the id registry. Use it to slim an overgrown "BACKLOG.md" without re-decomposing a PRD.
 - Use "create-blob-script" when the user asks to create or update the local `./blob` snapshot script.
 - Use "sync-tz-from-git" to reconcile written specs with implementation history and current code.
 - Use "modern-python" for Python project layout decisions, uv/pyproject migration, src-layout choices, and replacing legacy Python tooling.
@@ -80,6 +90,7 @@ When you need the text of a command template, read **`~/.cursor/commands/<name>.
 - Use "ui-github-link" to add a GitHub repository button or header link in desktop or web app UI (PySide6, QML, SwiftUI, AppKit, browser).
 - Use "web-ui-design" for browser-based UI design intake and routing when the design approach is unset (landing pages, dashboards, HTML/CSS, React/Vue, styled web apps).
 - Use "initialize-ai-task" only when the user explicitly asks to create or enable `.ai-task` infrastructure in the current repo.
+- Use "bootstrap-project" to set up or connect a new project folder: detect the Github collection, init or connect git and a GitHub remote, and add the shared "AGENTS.md" as a committed copy (idempotent, re-runnable). Reach for it on "bootstrap project", "connect to GitHub", or "wire up the shared rules".
 - Use "ati-inner-source-check" when the user asks whether a repo is ready for company inner source, infra migration, or production handoff (logging, K8s limits, secrets, docs, tests). Trigger via `ati-inner-source-check.md` or phrases like «inner source», «перенос на инфру», «готов ли проект», «inner_source readiness». After the report, use "add-backlog-task" only if the user confirms backlog entries.
 
 ## Boundaries
