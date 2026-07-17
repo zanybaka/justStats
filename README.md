@@ -1,5 +1,7 @@
 # justStats
 
+[![CI](https://github.com/zanybaka/justStats/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/zanybaka/justStats/actions/workflows/ci.yml)
+
 A native macOS menu bar app that keeps an eye on your disks — at a glance, in one click.
 
 <p align="center">
