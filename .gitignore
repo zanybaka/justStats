@@ -28,3 +28,8 @@ dist/
 *private_key*
 dsa_priv.pem
 sparkle_private*
+
+# ai-task: opt-in, operator-local infrastructure. Fully reproduced by
+# `ai-task init`; runtime state (runs, worktrees, quota, telemetry) is
+# machine-local. Nothing here is committed.
+.ai-task/
