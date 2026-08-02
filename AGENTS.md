@@ -80,7 +80,7 @@ When you need the text of a command template, read **`~/.cursor/commands/<name>.
 - Use "refactoring-from-blob" for evidence-based refactoring analysis from concatenated snapshots.
 - Use "add-backlog-task" to insert one implementation-ready task into "BACKLOG.md".
 - Use "retroactive-backlog" when documenting already-shipped work: follow "add-backlog-task" for task block format (retro overrides in that skill), update "CHANGELOG.md", commit docs separately from code.
-- Use "backlog-rotate" for backlog hygiene: archive only closed (`- [x]`) tasks into a numbered archive, keep open and deferred tasks in place, and refresh the id registry. Use it to slim an overgrown "BACKLOG.md" without re-decomposing a PRD.
+- Use "backlog-rotate" for backlog hygiene: archive only closed (`- [x]`) tasks, keep open and deferred ones in place, and refresh the id registry. In a file-per-task repo it is a file move owned by the store tool (closed task files to "backlog/archive/tasks/", index regenerated); the legacy numbered "BACKLOG-NNN.md" archive is only for a non-migrated inline repo. The usual trigger is closed work piling up in "backlog/tasks/" - the generated index itself no longer grows with it.
 - Use "create-blob-script" when the user asks to create or update the local `./blob` snapshot script.
 - Use "sync-tz-from-git" to reconcile written specs with implementation history and current code.
 - Use "modern-python" for Python project layout decisions, uv/pyproject migration, src-layout choices, and replacing legacy Python tooling.
@@ -171,10 +171,12 @@ When you need the text of a command template, read **`~/.cursor/commands/<name>.
 
 ## Writing style
 
-When writing or editing text (docs, comments, messages):
+These rules are about **service texts** - what you write as a worker: documentation, code comments, commit messages, issue and PR text, and replies in chat. They do not govern what a project **publishes to its own readers**: site pages, blog posts, and any other reader-facing copy follow the typographic norms of their language, and those norms win. Russian prose sets quotes as «ёлочки», and rewriting a published page to straight quotes would be a regression that looks like compliance.
+
+When writing or editing a service text:
 
 - **Write as a human would for humans**: natural, conversational, no extra symbols.
-- **Avoid** guillemets (типографские кавычки вроде «текст» с символами « и »). Обычно достаточно кавычек "..." или оборота без кавычек.
+- **Avoid** guillemets (типографские кавычки вроде «текст» с символами « и »). Обычно достаточно кавычек "..." или оборота без кавычек. Здесь они читаются как след машины: человек не набирает « » в комментарии или в сообщении коммита. В публикуемом русском тексте всё наоборот - см. область действия выше.
 - **Avoid** arrow symbols, em dashes where a hyphen or comma will do, and filler like "etc." or "and so on" when you can say it in plain words.
 - **Avoid** backticks in Markdown prose too. Use them only when they really help, for example for code, commands, paths, config keys, or exact literals.
 - **Prefer** short sentences, "and" and "or", "see" only when needed, a normal hyphen (-) or comma instead of an em dash.
