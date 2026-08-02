@@ -1,0 +1,32 @@
+name: backlog-guard
+# BACKLOG.md is a generated index over backlog/tasks/*.md and is never edited
+# by hand (using-ai TASKRUN-145, ADR 007). The store tool itself is vendored
+# into gitignored .ai-task/, so the check runs from the tracked
+# scripts/backlog-index-guard.py - the store's own code bundled into one
+# self-contained file. Generated: refresh it with `ai-task init`, never edit it.
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'BACKLOG.md'
+      - 'backlog/**'
+      - 'scripts/backlog-index-guard.py'
+      - '.github/workflows/backlog-guard.yml'
+  pull_request:
+    paths:
+      - 'BACKLOG.md'
+      - 'backlog/**'
+      - 'scripts/backlog-index-guard.py'
+      - '.github/workflows/backlog-guard.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: backlog-guard-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  index:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: python3 scripts/backlog-index-guard.py check
