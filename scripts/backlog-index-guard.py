@@ -24,8 +24,21 @@ Refresh - never hand-edit - from the repo that owns the store tool:
 refresh shows up in `git status` instead of ageing silently.
 
 Bundled verbatim (intra-package imports stripped) from: ai_task/_shared.py, ai_task/backlog.py, ai_task/backlog_store.py.
-Source digest: sha256:10ade699962a8b33d1efb3618924c16e479fd71ec9dacbd4a93262e65916c782 (bundle format 1).
+Source digest: sha256:3ec4410b21da97a7741106c2c7e23808a83153a8c1add27399b8a0a8c6a862c3 (bundle format 2).
 """
+
+# Inert to linters and formatters BY CONSTRUCTION (TASKRUN-146), so a repo that
+# vendors this file needs no lint configuration of its own. Flattening leaves
+# artifacts that are correct for a bundle and meaningless as project debt: each
+# bundled module keeps its own stdlib imports, so the same import repeats and
+# sits mid-file, and the code is formatted to the profile's width rather than
+# this repo's. Suppress here rather than rewriting the code: the guard's whole
+# value is being the store's own code byte-for-byte, and a bundler that also
+# reformats would be a second thing to trust.
+# ruff: noqa
+# flake8: noqa
+# pylint: skip-file
+# fmt: off
 
 from __future__ import annotations
 
@@ -1319,7 +1332,7 @@ def main(argv: list[str] | None = None) -> int:
 # sha256 over the bundled module sources plus the generator templates. The
 # store's `guard --check` recomputes it from the local modules, so a copy that
 # fell behind the profile - or was hand-edited - is detected, not trusted.
-GUARD_SOURCE_SHA256 = "10ade699962a8b33d1efb3618924c16e479fd71ec9dacbd4a93262e65916c782"
+GUARD_SOURCE_SHA256 = "3ec4410b21da97a7741106c2c7e23808a83153a8c1add27399b8a0a8c6a862c3"
 GUARD_REL = "scripts/backlog-index-guard.py"
 
 
