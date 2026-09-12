@@ -80,7 +80,7 @@ When you need the text of a command template, read **`~/.cursor/commands/<name>.
 - Use "refactoring-from-blob" for evidence-based refactoring analysis from concatenated snapshots.
 - Use "add-backlog-task" to insert one implementation-ready task into "BACKLOG.md".
 - Use "retroactive-backlog" when documenting already-shipped work: follow "add-backlog-task" for task block format (retro overrides in that skill), update "CHANGELOG.md", commit docs separately from code.
-- Use "backlog-rotate" for backlog hygiene: archive only closed (`- [x]`) tasks, keep open and deferred ones in place, and refresh the id registry. In a file-per-task repo it is a file move owned by the store tool (closed task files to "backlog/archive/tasks/", index regenerated); the legacy numbered "BACKLOG-NNN.md" archive is only for a non-migrated inline repo. The usual trigger is closed work piling up in "backlog/tasks/" - the generated index itself no longer grows with it.
+- Use "backlog-rotate" for backlog hygiene: archive terminal tasks (done `- [x]` and canceled `- [c]`), keep open and deferred ones in place, and refresh the id registry. In a file-per-task repo it is a file move owned by the store tool (closed task files to "backlog/archive/tasks/", index regenerated); the legacy numbered "BACKLOG-NNN.md" archive is only for a non-migrated inline repo. The trigger is the total volume of the generated "BACKLOG.md" index, which is what delivery readers load - not the count of closed task files, which only a parser reads.
 - Use "create-blob-script" when the user asks to create or update the local `./blob` snapshot script.
 - Use "sync-tz-from-git" to reconcile written specs with implementation history and current code.
 - Use "modern-python" for Python project layout decisions, uv/pyproject migration, src-layout choices, and replacing legacy Python tooling.
@@ -100,6 +100,26 @@ When you need the text of a command template, read **`~/.cursor/commands/<name>.
 - **Never:** log secrets, PII, or sensitive user content.
 - **Never:** put internal project names, infra hostnames, or home/user paths in **tracked** files. Analytics/cost/retro artifacts written from another repo's `.ai-task` data MUST use anonymized project ids (mapping in `tasks/TASKRUN-111.md`), never real repo names/paths — the pre-push privacy scan (`scripts/git-hooks/privacy-allowlist.txt`) enforces this.
 - **Never:** introduce hidden behavior that contradicts PRD or TECHSPEC invariants.
+- **Never:** put infrastructure detail into text you post in a **public** repository — see the section below.
+
+## What may be posted in a public repository
+
+**This file is one of those texts.** It is copied into every connected repository, including the public ones, so anything written here is published there. Do not put an example in this section that the section itself forbids - that mistake has already been made once, on 2026-09-12.
+
+The Boundaries rule above covers **tracked files**. This one covers **text an agent publishes**: issue bodies and comments, PR descriptions and review comments, gate verdicts, retrospectives. In a public repository every one of those is world-readable the moment it is posted, and editing it later does not un-publish it.
+
+This is not about access. A public repository is usually public on purpose, and its CI may be perfectly safe. It is about what we volunteer alongside the work.
+
+**Decide visibility first, and fail closed.** Read it from the repository metadata (`GET /repos/{owner}/{repo}` → `private`, or `gh repo view --json isPrivate`). If the call fails, the field is missing, or you are working without that access, **treat the repository as public**. Unknown is never a reason to post the unrestricted form.
+
+**In a public repository, keep out of the text:**
+
+- Session cost or token figures, quota percentages, model names paired with spend.
+- Host names, unit or service names, filesystem paths, and ready-made operator commands (`journalctl …`, `systemctl …`, anything a reader could run against the host).
+- Names of other repositories, unless you have confirmed that repository is public too, and names of private infrastructure generally. This rule does not get an examples list: a list of private repository names, written into a canon that is copied into every repository including the public ones, publishes exactly what it forbids. Resolve it the same way as visibility above - check, and treat unknown as private.
+- Raw log excerpts, environment dumps, and stack traces that carry any of the above.
+
+**Say the cause, not the plumbing.** The rule removes detail, never honesty. An infrastructure cause is still named — generically, at the level the reader in the app repository actually needs ("the environment could not start a browser") — and the detail goes where it belongs: the issue filed in the private infra repository, which is not world-readable. A verdict that hides the fact that something failed is a worse outcome than a leak, and this rule never asks for one. Where you cannot say the cause without the plumbing, say that you could not establish it.
 
 ## Verification Policy
 
