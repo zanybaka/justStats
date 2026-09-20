@@ -127,6 +127,18 @@ This is not about access. A public repository is usually public on purpose, and 
 - For contract changes, verify producer and consumer compatibility.
 - Report verification outcome clearly and list unresolved risks.
 
+## Pushing when CI is metered
+
+Some of these repositories run CI on a metered quota: it is shared, it is spent per
+job-minute, and when it runs out CI stops for everyone until the quota resets. Before you
+push to the default branch, check whether its CI is currently red. On a red default branch
+push only the fix for what is red. Any other push buys a run that cannot pass, and it
+buries the change that broke the branch under later ones.
+
+How to read that state is a per-repo detail: a helper the repository ships, the CI page,
+or the CLI the repository already uses. If there is no way to tell, push as usual and say
+in your report that you could not check.
+
 ## Contract Change Policy
 
 - If contract changes are required, update all consumers in the same task.
