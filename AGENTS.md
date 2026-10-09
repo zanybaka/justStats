@@ -203,16 +203,26 @@ in your report that you could not check.
 
 ## Writing style
 
-These rules are about **service texts** - what you write as a worker: documentation, code comments, commit messages, issue and PR text, and replies in chat. They do not govern what a project **publishes to its own readers**: site pages, blog posts, and any other reader-facing copy follow the typographic norms of their language, and those norms win. Russian prose sets quotes as «ёлочки», and rewriting a published page to straight quotes would be a regression that looks like compliance.
+These rules cover every text a person will read: documentation, code comments, commit messages, issue and PR text, tracker comments, chat messages and posts, specs, presentations, and replies in chat. Typography has one exception. What a project **publishes to its own readers** (site pages, blog posts, other reader-facing copy) follows the typographic norms of its language, and those norms win. Russian prose sets quotes as «ёлочки», and rewriting a published page to straight quotes would be a regression that looks like compliance.
 
-When writing or editing a service text:
+Machine artifacts (schemas, registries, contracts, hashes) are outside these rules. When one result has a part for people and a part for machines (edits, metrics, ids, fix hints), make two artifacts: a short text for people where they read it, and the details in a separate file that the text links to. The style rules do not apply to that file. If the text for people does not fit in one comment, the details have not moved to the file yet.
+
+Quote other people's text, logs and ADRs verbatim, and never edit a fact for style. Names of statuses, columns, tags, branches, boards, commands and error strings are copied byte for byte: if the column is called "Ожидает приемки", do not write "ждёт приёмки".
+
+When writing or editing such a text:
 
 - **Write as a human would for humans**: natural, conversational, no extra symbols.
-- **Avoid** guillemets (типографские кавычки вроде «текст» с символами « и »). Обычно достаточно кавычек "..." или оборота без кавычек. Здесь они читаются как след машины: человек не набирает « » в комментарии или в сообщении коммита. В публикуемом русском тексте всё наоборот - см. область действия выше.
-- **Avoid** arrow symbols, em dashes where a hyphen or comma will do, and filler like "etc." or "and so on" when you can say it in plain words.
+- **Open with what the reader has to do and why.** If nothing is needed from them, the first paragraph says so.
+- **Name who acts.** Every action has a person, a team or a system doing it. A commit, a document or an abstraction does not act. Rather than "осуществляется проверка", "необходимо заполнить поле" or "процесс предполагает", write "тимлид заполняет поле", "мы потратили два дня".
+- **Give a number its meaning**: "12 минут до разряда батареи", not a bare "12 минут". Describe an option through people: who gets what, and who pays with what.
+- **Prefer the Russian word** when it carries the meaning: проверка, черновик, охват, порог. No calques like "дропать". Established terms and identifiers stay as they are. A term the reader may not know gets one explaining phrase at its first mention.
+- **Avoid** guillemets (типографские кавычки вроде «текст» с символами « и »). Обычно достаточно кавычек "..." или оборота без кавычек. Здесь они читаются как след машины: человек не набирает « » в комментарии или в сообщении коммита. Публикуемый русский текст живёт по своим правилам, см. область действия выше.
+- **Avoid** arrow symbols, em dashes, and filler like "etc." or "and so on" when you can say it in plain words.
 - **Avoid** backticks in Markdown prose too. Use them only when they really help, for example for code, commands, paths, config keys, or exact literals.
-- **Prefer** short sentences, "and" and "or", "see" only when needed, a normal hyphen (-) or comma instead of an em dash.
-- Lists and tables are fine; the wording inside should still read like natural language.
+- **Prefer** short sentences, "and" and "or", "see" only when needed. Do not join a clause and its explanation with a dash of any kind, a hyphen included: rather than "Мы обновили кэш - это ускорило сборку", write "После обновления кэша сборка ускорилась".
+- **Use a list only for facts**: scenarios, criteria, steps. Where a paragraph will do, write a paragraph. Inside lists and tables the wording still reads like natural language. One thought is not split into nested points, and one action is not numbered as steps.
+- **Give a link readable text**: [Release notes](url), not a bare URL. Where the channel renders no markup, write the label and then the URL.
+- **Let each paragraph stand on its own.** The reader understands it without opening another document, and the link only adds detail. Read the text aloud: the person who asked should follow it without a translator.
 
 Example: rather than shorthand like "Auth flow, see Architecture" with odd punctuation, use "For the auth flow, see the Architecture section" or "See Architecture for auth."
 
@@ -221,7 +231,22 @@ Example: rather than shorthand like "Auth flow, see Architecture" with odd punct
 These read as machine-written even when the grammar is fine:
 
 - **Fake-casual filler.** Throwaway phrases that pretend liveliness: "ничего умного", "магии нет", "спойлер", "как по волшебству", "nothing fancy". If the sentence works without it, drop it.
+- **Contact filler and signposts.** "Отличный вопрос!", "Надеюсь, это поможет", "Давайте разберёмся", "итак", "таким образом", "отметим", "важно отметить", "стоит подчеркнуть". Drop them, nothing replaces them.
 - **Cute metaphors for how things work.** Describe the mechanism directly. Avoid "винтики", "шестерёнки", "под капотом крутится", "гнётся под что угодно". Prefer "меняются две вещи" over "крутятся два винтика".
-- **Slop shapes.** No grand summarizing finale ("ценна не папка, а связка"), no set of identical template sections, no exhaustive "почему X" bullet lists, no hedging for its own sake. Stop when the point is made.
+- **Contrast framing.** "Не X, а Y" and "это не просто X, это Y". State the fact directly: "Дело не в тестах, а в окружении" becomes "Тесты падают из-за окружения", and "Это не просто баг, это системная проблема" becomes "Баг повторяется в трёх модулях".
+- **Piled negations.** "Нельзя сказать, что это не повлияло" becomes "Это повлияло". A run of fragments like "Не баг. Не регрессия. Фича" becomes "Так задумано".
+- **Question and answer in prose.** "Почему упал билд? Потому что протух кэш" becomes "Билд упал из-за протухшего кэша". A heading phrased as a question is fine.
+- **Rhythm devices.** A triad for rhythm ("быстро, надёжно и масштабируемо"): name one real effect, with a number. Balancing clichés ("с одной стороны... с другой") and turns for effect ("не мы выбираем инструмент, инструмент выбирает нас"). Fake ranges ("от идеи до релиза") and doublets ("цели и задачи").
+- **Inflation.** A small fact presented as a principle or a turning point. Categories invented to look systematic ("три типа разработчиков"); a real, agreed classification is fine.
+- **Empty hedging.** "Кажется", "возможно", "в целом" with no reason to doubt. When there is doubt, name its source: "не проверял на API 26".
+- **Slop shapes.** No grand summarizing finale ("ценна не папка, а связка"), no closing line about people and values ("ведь главное команда"), no set of identical template sections, no exhaustive "почему X" bullet lists. Stop when the point is made.
 - **Person drift.** Do not slide from a chosen subject into a vague impersonal one mid-text ("я собрал..." then "их метят метками", "вешается на событие"). Pick a subject and keep it.
 - **Translating tool or UI names.** Give the original name, then the localized term in parentheses once: "Shortcuts (Команды)". Do not write "по-русски", "по-английски", or "in Russian".
+
+### Before sending
+
+1. The first paragraph says what the reader has to do.
+2. Every action has someone doing it.
+3. Each paragraph, heading, list item and table cell is checked against the tells above. One tell found means a rewrite.
+4. Internal jargon is replaced with plain words or explained at its first mention.
+5. The text is reread as a tired person who sees the project for the first time.
