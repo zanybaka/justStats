@@ -135,3 +135,13 @@ screenshots. Both should be real before the repo goes public / v1.0.0 is announc
 ## Phase 15 — Bug fixes (2026-07-12, from crash-report analysis)
 
 - [ ] [SCAN-008](backlog/tasks/SCAN-008.md) Fix deinit deadlock in SpotlightLargestFilesScanner (dispatch_sync on own stateQueue)
+
+## Phase 16 — Reclaimable space cleanup (2026-10-11, from manual cleanup session)
+
+- [ ] [ADR-004](backlog/tasks/ADR-004.md) Accept ADR-006: rule-catalog cleanup actions
+- [ ] [CLEAN-001](backlog/tasks/CLEAN-001.md) Cleanup rule model, catalog and detection with unit tests
+- [ ] [CLEAN-002](backlog/tasks/CLEAN-002.md) Reclaimable space section in the popover (read-only)
+- [ ] [CLEAN-003](backlog/tasks/CLEAN-003.md) Clean action: delete known directory with inline confirmation
+- [ ] [CLEAN-004](backlog/tasks/CLEAN-004.md) Clean action: allowlisted external commands (docker, uv, npm, brew)
+- [ ] [CLEAN-005](backlog/tasks/CLEAN-005.md) Copy AI prompt for deeper analysis (English, with preview)
+- [ ] [CLEAN-006](backlog/tasks/CLEAN-006.md) Destructive-action safety review for cleanup

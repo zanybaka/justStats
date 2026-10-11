@@ -37,6 +37,9 @@ App archetype (per the skill's own taxonomy): **Menu-bar app** — "lives in men
 | FR11 (launch at login) | `SMAppService.mainApp.register()` / `.unregister()` (macOS 13+ API) — no helper executable, unlike Stats' legacy pattern. See §5. |
 | FR12 (Sparkle auto-update) | Sparkle framework, self-generated EdDSA key pair, `appcast.xml` served from `raw.githubusercontent.com` on the `main` branch, updated per release. Artifact: `.zip`. See §6. |
 | FR13 (refresh model) | Two-tier: `IconController` timer (icon only) + lazy full compute on popover open + manual "Refresh" button. See §3. |
+| FR14 (reclaimable section) | `CleanupCatalog` — static table of `CleanupRule` values (id, name, detection, size probe, safety tier, action). `ReclaimableScanner` evaluates rules lazily on popover open, off the main thread, like the other scanners. See §12. |
+| FR15 (Clean action) | `CleanupExecutor` — `.deleteDirectory(URL)` via `FileManager.removeItem` after the guard checks, or `.runCommand(AllowedCommand)` via `Process` with a fixed argv, timeout and no shell. See §12. |
+| FR16 (AI prompt) | `AIPromptBuilder` — pure function producing the English prompt text from scanner output; copied with `NSPasteboard`. See §12. |
 | NFR1–NFR4 (performance) | Enforced by design: only one cheap `statfs` call runs continuously; all expensive work (Spotlight queries, full enumeration) is on-demand and off the main thread. See §7. |
 
 ## 3. Refresh Model (resolved architecture question)
@@ -169,3 +172,37 @@ Sourced from two places only: (a) a technical article on `NSStatusItem` that dir
 - Sparkle auto-update with a self-managed EdDSA key, no Apple notarization/Developer ID — §6. Promoted to ADR: `ADR/004-sparkle-without-notarization.md` (Accepted).
 - `SMAppService` for launch-at-login instead of reusing Stats' legacy helper-executable pattern — §5 (corrects PRD's original ADR-CANDIDATE after source inspection). Promoted to ADR: `ADR/005-smappservice-launch-at-login.md` (Accepted).
 - Mirror Stats' `Kit`/`Modules` structural pattern for the module boundary, without adopting its `DiskArbitration`-as-event-source approach (Stats itself doesn't use it that way either) — §1, §3.
+- Rule-catalog cleanup (directory delete + allowlisted commands, no heuristics, no AI) — §12. Promoted to ADR: `ADR/006-rule-catalog-cleanup.md` (Proposed).
+
+## 12. Reclaimable Space Cleanup (FR14–FR16)
+
+### 12.1 Rule model
+
+```swift
+struct CleanupRule {
+    let id: String              // stable, e.g. "vscode-shipit"
+    let title: String
+    let detect: Detection       // .path(URL) | .tool(binary: String, probe: AllowedCommand)
+    let tier: SafetyTier        // .green (one-click) | .yellow (explain only)
+    let action: CleanupAction   // .deleteDirectory(URL) | .runCommand(AllowedCommand)
+    let guardrail: Guardrail?   // e.g. .processNotRunning("Visual Studio Code")
+    let note: String            // shown in the confirmation
+}
+```
+
+- Rules are data in one file. Adding a rule never touches executor logic.
+- Initial catalog (all green unless noted): VS Code ShipIt leftovers (`~/Library/Caches/com.microsoft.VSCode.ShipIt`), uv cache (`uv cache prune`), npm cache (`npm cache clean --force`), Homebrew cache (`brew cleanup`), Docker (`docker system prune -a -f`, requires a running daemon), Xcode DerivedData. Yellow, explain-only: Hugging Face model cache (`~/.cache/huggingface`), app VM bundles.
+- Sizes come from a bounded directory-size walk (allocated size, consistent with UX-010/UX-011) or the tool's own report; results are cached with the existing TTL cache (UX-002).
+
+### 12.2 Execution safety
+
+- No shell. Commands are fixed argv arrays from the `AllowedCommand` enum; user data never reaches argv.
+- `deleteDirectory` only accepts a URL that equals a rule's declared path after standardizing; symlinks are not followed; the path must be inside the user's home and must not be the home itself.
+- A rule with a guardrail refuses to run while the guarded process is running and says why in the row.
+- Every action needs the inline confirmation (same pattern as ACT-002), is keyboard- and VoiceOver-operable, and reports bytes freed measured before/after.
+
+### 12.3 AI prompt
+
+`AIPromptBuilder` output (English) has four parts: (1) role and hard rules — analysis is read-only first, report before proposing, never delete without explicit confirmation, never run `rm -rf` on a variable or home-level path, measure with allocated size and beware symlink double counting, check last-used time before calling something stale; (2) the machine facts the app already knows — volume, total/free, category breakdown, largest files (paths); (3) what the catalog already offered and what was cleaned; (4) the ask — find the next biggest safe wins and list them with size, last-used date and how to reverse.
+
+The preview dialog shows the full text before it is copied; file paths in the prompt are the only personal data and nothing leaves the Mac unless the user pastes it.

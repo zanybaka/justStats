@@ -45,6 +45,7 @@ Reference product: [diskbar.app](https://diskbar.app) (menu bar disk monitor for
 - A Settings/Preferences window to configure the yellow/red thresholds, selectable as either an absolute size (GB) or a percentage of total capacity.
 - "Launch at Login" toggle.
 - Sparkle-based auto-update (self-signed EdDSA key, no Apple notarization required).
+- "Reclaimable space" section: a built-in, data-driven catalog of known cleanable items (tool caches, update leftovers) with size and a one-click Clean action; plus a "Copy AI prompt" button for deeper analysis outside the app (FR14–FR16). The app contains no AI and no network calls for this.
 
 **Explicitly out of scope for v1:** see Non-Goals above.
 
@@ -65,6 +66,9 @@ Reference product: [diskbar.app](https://diskbar.app) (menu bar disk monitor for
 | FR11 | A "Launch at Login" toggle is available in Settings. |
 | FR12 | The app checks for and can install updates via Sparkle, using a self-signed update feed (no Apple Developer ID/notarization dependency). |
 | FR13 | Icon color (FR1) is refreshed by a lightweight periodic background timer (single cheap `statfs` call on the boot volume only). All other data (full volume list, category breakdown, largest files) is computed on demand when the popover opens, plus via an explicit in-popover "Refresh" button — not via continuous background polling. See TECHSPEC for the full rationale. |
+| FR14 | The popover has a "Reclaimable space" section listing items from a built-in rule catalog that exist on this Mac and exceed a size floor (default 100 MB): name, size, safety tier (green/yellow). Items are found by fixed rules (known paths or known CLI tools), never by heuristics. Shown only when at least one item is found. No push notifications. |
+| FR15 | Each green-tier item has a **Clean** action that runs after an inline confirmation naming what will happen and the size freed. The action is either deleting a known directory (permanently, not via Trash) or running one fixed command from a compiled-in allowlist (the exact command is shown in the confirmation). Yellow-tier items are listed with an explanation but have no one-click action. Errors are shown in the row. |
+| FR16 | A "Still short on space? Copy AI prompt" action copies an English prompt to the clipboard for use with an external AI assistant. A preview is shown before copying. The prompt carries the volume's free space, the category breakdown, the items from FR14 and a fixed safety preamble (read-only first, confirm before any deletion). The app itself performs no AI calls. |
 
 ## ADR-Candidate Decisions
 
@@ -143,6 +147,11 @@ Both reference products are general system-monitoring "combines" (CPU/GPU/RAM/di
 - **Full Disk Access / privacy permissions** — reading Spotlight metadata and file paths across the user's whole home folder (Mail, Photos Library, Desktop/Documents under newer macOS privacy protections) may require the user to grant Full Disk Access manually in System Settings; without it, category/largest-files data will be incomplete. Needs a clear onboarding prompt.
 - **Spotlight index gaps** — many external/network/USB drives are not Spotlight-indexed by default, so category breakdown and largest-files may be empty or stale for those volumes until indexing is enabled (see ADR-CANDIDATE above); this must be surfaced to the user, not hidden.
 - **v1 scope grew substantially** by folding in diskbar.app's category-breakdown and largest-files/cleanup features — original ask was closer to a simple `df`-style menu bar readout. Flagging explicitly since it changes effort/complexity, per the user's direct request to include "everything useful from diskbar.app."
+
+- **ADR-CANDIDATE: Rule-catalog cleanup actions (directory delete + allowlisted commands) instead of AI or heuristic suggestions.**
+  Rationale: the app has no AI and must stay predictable; deleting based on guesses is unacceptable for a disk tool. A compiled-in catalog of known cleanable items keeps every action reviewable and unit-testable, and keeps the app free of network calls. Deep analysis that the catalog cannot cover is handed off to an external AI via a copyable prompt (FR16).
+  Alternatives considered: heuristic detection of "junk" by size/age (rejected: false positives delete user data); embedding an LLM (rejected: footprint, network, trust); Trash-only cleanup (rejected: caches in Trash still occupy space, and ADR-003-style Spotlight data does not cover tool caches).
+  Promoted to ADR: `ADR/006-rule-catalog-cleanup.md` (Proposed).
 
 ## Open Questions
 

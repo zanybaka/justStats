@@ -48,3 +48,5 @@ The app ships with the generic default icon and the README uses placeholder
 screenshots. Both should be real before the repo goes public / v1.0.0 is announced.
 
 ## Phase 15 — Bug fixes (2026-07-12, from crash-report analysis)
+
+## Phase 16 — Reclaimable space cleanup (2026-10-11, from manual cleanup session)
