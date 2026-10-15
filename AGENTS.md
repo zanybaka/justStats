@@ -196,6 +196,17 @@ in your report that you could not check.
 - Do everything possible within current access and constraints.
 - If information is missing, ask one precise question, then continue with safe assumptions.
 
+## Delivering an intent
+
+An intent is big work the owner states as a goal ("Намерение: ...", or an epic carried in rounds). It reaches you as an issue for the headless pipeline or as a request in a local session. Either way the owner expects a finished product and as few interruptions as possible. Every role that works on an intent follows these six rules.
+
+1. **Accept the product as its user.** Open the result and use it the way a real user or player would, then compare it with the intent text and its quality bar. Closed subtasks and green checks prove only their own parts. Placeholder graphics or sound, and a game that can be won by repeating one cheap move, count as missing work. Every gap becomes a task of the next round.
+2. **Ask only what is the owner's to decide.** When the owner would approve a choice anyway, make it yourself and say which option you took. Questions are only about taste, money, access, and public or irreversible steps, and they go out together in one message.
+3. **Never wait on a task-level decision.** Take the option the project documents name (the more conservative one when they name none), record it, and keep the work moving.
+4. **Notice stuck and slow work before the owner does.** Throughput is part of the intent. The role that sees a task standing still or a round running slower than the last one raises it and acts on it without waiting for a status question.
+5. **Treat every owner intervention as a defect of the system.** A nudge, a correction, a quality complaint or a status question from the owner means a mechanism missed something. The retrospective files the change that would have caught it, through the usual improvement channel.
+6. **Report briefly, in the owner's language, and end with who does what.** State lives in issues and documents, so the owner can close the chat after any report. The last lines say what you do next and what, if anything, the owner has to do.
+
 ## Keep This File Lean
 
 - Keep "AGENTS.md" concise and stable; move details to source files.
