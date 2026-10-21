@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """Turn the weekly gitleaks and Semgrep reports of main into issues (SKILL-162).
 
-Placed by bootstrap-project as scripts/security-findings.py, byte for byte; the
-tests live in using-ai (tests/test_security_findings.py), so do not reformat a
-copy in a consuming repository.
+Placed as scripts/security-findings.py, byte for byte, by the project bootstrap;
+its tests live with the bootstrap templates, so do not edit or reformat a copy
+in a consuming repository.
 
 Routing by visibility:
   private  an issue per NEW finding in this repository (labels ai-inbox and
