@@ -54,7 +54,8 @@ def load_findings(gitleaks: Path | None, semgrep: Path | None) -> list[dict]:
     if semgrep and semgrep.is_file() and semgrep.read_text(encoding="utf-8").strip():
         for item in json.loads(semgrep.read_text(encoding="utf-8")).get("results", []):
             rule, path = item.get("check_id", "unknown"), item.get("path", "")
-            # One issue per rule and file: a line number moves with every edit and would reopen the finding.
+            # One issue per rule and file: a line number moves with every edit
+            # and would reopen the finding.
             findings.append(
                 {
                     "key": f"sast:{rule}:{path}",
@@ -74,9 +75,23 @@ def load_findings(gitleaks: Path | None, semgrep: Path | None) -> list[dict]:
 
 
 def open_keys(gh: GhRunner, repo: str) -> set[str]:
-    """Dedup keys of the open scan issues of a repository, read from the marker in their bodies."""
-    out = gh(["issue", "list", "--repo", repo, "--state", "open", "--label", SCAN_LABEL,
-              "--limit", "500", "--json", "body"])
+    """Dedup keys of a repository's open scan issues, read from body markers."""
+    out = gh(
+        [
+            "issue",
+            "list",
+            "--repo",
+            repo,
+            "--state",
+            "open",
+            "--label",
+            SCAN_LABEL,
+            "--limit",
+            "500",
+            "--json",
+            "body",
+        ]
+    )
     prefix, suffix = MARKER.split("{key}")
     keys = set()
     for issue in json.loads(out or "[]"):
@@ -86,25 +101,32 @@ def open_keys(gh: GhRunner, repo: str) -> set[str]:
             end = body.find(suffix, start + len(prefix))
             if end == -1:
                 break
-            keys.add(body[start + len(prefix):end])
+            keys.add(body[start + len(prefix) : end])
             start = body.find(prefix, end)
     return keys
 
 
 def issue_text(finding: dict, source_repo: str) -> tuple[str, str]:
-    where = f"{finding['path']}:{finding['line']}" if finding["line"] else finding["path"]
+    where = (
+        f"{finding['path']}:{finding['line']}" if finding["line"] else finding["path"]
+    )
     kind = "секрет" if finding["kind"] == "secret" else "SAST"
     title = f"security: {kind} {finding['rule']} в {finding['path']} ({source_repo})"
     body = (
-        f"Еженедельный скан main репозитория {source_repo} нашёл {kind}: правило {finding['rule']}, "
+        f"Еженедельный скан main репозитория {source_repo} нашёл {kind}: "
+        f"правило {finding['rule']}, "
         f"{where}.\n\n"
         + (
-            "Значение в журнал и в этот текст не попадает. Ключ ротирует человек, и только после "
+            "Значение в журнал и в этот текст не попадает. Ключ ротирует "
+            "человек, и только после "
             "ротации отпечаток можно внести в .gitleaksignore.\n"
             if finding["kind"] == "secret"
-            else "Если это ложное срабатывание, внесите причину в .semgrepignore или nosemgrep.\n"
+            else "Если это ложное срабатывание, внесите причину в "
+            ".semgrepignore или nosemgrep.\n"
         )
-        + "\n" + MARKER.format(key=finding["key"]) + "\n"
+        + "\n"
+        + MARKER.format(key=finding["key"])
+        + "\n"
     )
     return title, body
 
@@ -119,9 +141,13 @@ def route(
     """Create the issues; returns (created, skipped as duplicates)."""
     if visibility == "public":
         if not infra_repo:
-            raise SystemExit("public repository needs --infra-repo: findings must not go to its own issues")
+            raise SystemExit(
+                "public repository needs --infra-repo: findings must not go "
+                "to its own issues"
+            )
         target, labels = infra_repo, INFRA_LABELS
-        # A public finding is keyed with the repository, so one infra repository can hold many.
+        # A public finding is keyed with the repository, so one infra
+        # repository can hold findings of many.
         findings = [{**f, "key": f"{repo}:{f['key']}"} for f in findings]
     else:
         target, labels = repo, PRIVATE_LABELS
@@ -134,8 +160,19 @@ def route(
         title, body = issue_text(finding, repo)
         for label in labels:
             gh(["label", "create", label, "--repo", target, "--force"])
-        gh(["issue", "create", "--repo", target, "--title", title, "--body", body,
-            *[a for label in labels for a in ("--label", label)]])
+        gh(
+            [
+                "issue",
+                "create",
+                "--repo",
+                target,
+                "--title",
+                title,
+                "--body",
+                body,
+                *[a for label in labels for a in ("--label", label)],
+            ]
+        )
         existing.add(finding["key"])
         created.append(finding)
     return created, skipped
@@ -160,10 +197,16 @@ def main(argv: list[str] | None = None, gh: GhRunner = _gh) -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--repo", required=True, help="OWNER/REPO that was scanned")
     parser.add_argument("--visibility", required=True, choices=("public", "private"))
-    parser.add_argument("--infra-repo", help="OWNER/REPO that receives findings of a public repository")
+    parser.add_argument(
+        "--infra-repo", help="OWNER/REPO that receives findings of a public repository"
+    )
     parser.add_argument("--gitleaks", type=Path)
     parser.add_argument("--semgrep", type=Path)
-    parser.add_argument("--telegram-out", type=Path, help="file for the owner's line; empty when nothing to say")
+    parser.add_argument(
+        "--telegram-out",
+        type=Path,
+        help="file for the owner's line; empty when nothing to say",
+    )
     args = parser.parse_args(argv)
 
     findings = load_findings(args.gitleaks, args.semgrep)
@@ -171,7 +214,10 @@ def main(argv: list[str] | None = None, gh: GhRunner = _gh) -> int:
     line = telegram_line(created, args.repo)
     if args.telegram_out:
         args.telegram_out.write_text(line + ("\n" if line else ""), encoding="utf-8")
-    print(f"findings: {len(findings)}, new issues: {len(created)}, already open: {len(skipped)}")
+    print(
+        f"findings: {len(findings)}, new issues: {len(created)}, "
+        f"already open: {len(skipped)}"
+    )
     return 0
 
 
