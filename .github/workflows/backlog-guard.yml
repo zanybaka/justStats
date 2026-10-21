@@ -1,6 +1,6 @@
 name: backlog-guard
 # BACKLOG.md is a generated index over backlog/tasks/*.md and is never edited
-# by hand (using-ai TASKRUN-145, ADR 007). The store tool itself is vendored
+# by hand (ADR 007). The store tool itself is vendored
 # into gitignored .ai-task/, so the check runs from the tracked
 # scripts/backlog-index-guard.py - the store's own code bundled into one
 # self-contained file. Generated: refresh it with `ai-task init`, never edit it.
@@ -21,7 +21,7 @@ on:
   workflow_dispatch:
 permissions:
   contents: read
-# Отмена только для PR (vps_2026 CI-009). В PR пуши до последнего устарели по определению.
+# Отмена только для PR. В PR пуши до последнего устарели по определению.
 # В push в main отмена оставила бы коммит в истории непроверенным навсегда, и выглядело бы это
 # как обычная отмена. Не заменять литералом true - форма канонична для всех репозиториев.
 concurrency:
@@ -31,5 +31,5 @@ jobs:
   index:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
       - run: python3 scripts/backlog-index-guard.py check

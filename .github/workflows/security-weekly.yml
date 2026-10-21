@@ -1,0 +1,76 @@
+name: security-weekly
+
+# Еженедельный полный прогон по main: gitleaks по всей истории git, Semgrep по
+# всему дереву. Этот репозиторий ПУБЛИЧНЫЙ, поэтому находка не становится issue
+# в нём самом: открытая issue о найденной уязвимости или секрете публикует её до
+# исправления. Находка уходит в приватное место - issue в инфра-репозитории с
+# меткой ai-improvement, а в публичный репозиторий потом попадает только
+# исправление без описания находки.
+#
+# НУЖНЫ: переменная репозитория SECURITY_INFRA_REPO (владелец/имя инфра-репозитория)
+# и секрет SECURITY_INFRA_TOKEN (токен только на issues в нём). Без них прогон
+# краснеет: молчаливый пропуск скрыл бы находки.
+#
+# Новый секрет в истории дополнительно шлёт строку владельцу в Telegram тем же
+# каналом, что алерты мониторов (секреты ALERT_TELEGRAM_BOT_TOKEN и
+# ALERT_TELEGRAM_CHAT_ID): ключ ротирует только человек.
+
+on:
+  schedule:
+    - cron: '17 4 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: security-weekly
+  cancel-in-progress: false
+
+jobs:
+  scan:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Настройки для приватного отчёта заданы
+        env:
+          INFRA_REPO: ${{ vars.SECURITY_INFRA_REPO }}
+          INFRA_TOKEN: ${{ secrets.SECURITY_INFRA_TOKEN }}
+        run: |
+          if [ -z "$INFRA_REPO" ] || [ -z "$INFRA_TOKEN" ]; then
+            echo "::error::нужны переменная SECURITY_INFRA_REPO и секрет SECURITY_INFRA_TOKEN"
+            exit 1
+          fi
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: gitleaks по всей истории
+        run: >
+          mkdir -p "$RUNNER_TEMP/out" && docker run --rm -v "$PWD:/repo" -v "$RUNNER_TEMP/out:/out" -w /repo
+          ghcr.io/gitleaks/gitleaks@sha256:c00b6bd0aeb3071cbcb79009cb16a60dd9e0a7c60e2be9ab65d25e6bc8abbb7f
+          git --redact --no-banner --exit-code 0 --report-format json --report-path /out/gitleaks.json /repo
+      - name: semgrep по всему дереву
+        run: >
+          docker run --rm -v "$PWD:/src" -v "$RUNNER_TEMP/out:/out" -w /src
+          semgrep/semgrep@sha256:4a34048c04fef049f71665047f074cffb00cc3d89482f965a5cd151d589237af
+          semgrep scan --config p/default --metrics=off --quiet --json --output /out/semgrep.json .
+      - name: Находки в issue
+        env:
+          GH_TOKEN: ${{ secrets.SECURITY_INFRA_TOKEN }}
+        run: >
+          python3 scripts/security-findings.py --repo "${{ github.repository }}" --visibility public --infra-repo "${{ vars.SECURITY_INFRA_REPO }}"
+          --gitleaks "$RUNNER_TEMP/out/gitleaks.json" --semgrep "$RUNNER_TEMP/out/semgrep.json"
+          --telegram-out "$RUNNER_TEMP/out/telegram.txt"
+      - name: Строка владельцу в Telegram
+        env:
+          BOT_TOKEN: ${{ secrets.ALERT_TELEGRAM_BOT_TOKEN }}
+          CHAT_ID: ${{ secrets.ALERT_TELEGRAM_CHAT_ID }}
+        run: |
+          text="$(cat "$RUNNER_TEMP/out/telegram.txt" 2>/dev/null || true)"
+          if [ -z "$text" ]; then exit 0; fi
+          if [ -z "$BOT_TOKEN" ] || [ -z "$CHAT_ID" ]; then
+            echo "::error::найден секрет, а секретов канала алертов нет: задайте ALERT_TELEGRAM_BOT_TOKEN и ALERT_TELEGRAM_CHAT_ID"
+            exit 1
+          fi
+          curl -fsS --max-time 30 "https://api.telegram.org/bot${BOT_TOKEN}/sendMessage" \
+            --data-urlencode "chat_id=${CHAT_ID}" --data-urlencode "text=${text}" >/dev/null
