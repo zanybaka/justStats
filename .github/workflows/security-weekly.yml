@@ -1,7 +1,10 @@
 name: security-weekly
 
-# Еженедельный полный прогон по main: gitleaks по всей истории git, Semgrep по
-# всему дереву. Этот репозиторий ПУБЛИЧНЫЙ, поэтому находка не становится issue
+# Плановый скан main. По понедельникам полный прогон: gitleaks по всей истории
+# git, Semgrep по всему дереву. В остальные дни только Semgrep по всему дереву, и
+# только если за сутки в main были коммиты: на PR в публичном репозитории идёт один
+# gitleaks, а ошибку в коде посторонний находит не раньше нас. Ручной запуск
+# делает полный прогон. Этот репозиторий ПУБЛИЧНЫЙ, поэтому находка не становится issue
 # в нём самом: открытая issue о найденной уязвимости или секрете публикует её до
 # исправления. Находка уходит в приватное место - issue в инфра-репозитории с
 # меткой ai-improvement, а в публичный репозиторий потом попадает только
@@ -18,6 +21,7 @@ name: security-weekly
 on:
   schedule:
     - cron: '17 4 * * 1'
+    - cron: '17 4 * * 0,2-6'
   workflow_dispatch:
 
 permissions:
@@ -44,17 +48,33 @@ jobs:
         with:
           fetch-depth: 0
           persist-credentials: false
+      - name: Что сканировать
+        id: plan
+        env:
+          SCHEDULE: ${{ github.event.schedule }}
+        run: |
+          if [ "$GITHUB_EVENT_NAME" != schedule ] || [ "$SCHEDULE" = '17 4 * * 1' ]; then
+            echo "full=true" >> "$GITHUB_OUTPUT"
+            echo "semgrep=true" >> "$GITHUB_OUTPUT"
+          elif [ -n "$(git log -1 --since='1 day ago' --format=%H)" ]; then
+            echo "semgrep=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "За сутки в main не было коммитов, скан пропущен"
+          fi
       - name: gitleaks по всей истории
+        if: steps.plan.outputs.full == 'true'
         run: >
           mkdir -p "$RUNNER_TEMP/out" && docker run --rm -v "$PWD:/repo" -v "$RUNNER_TEMP/out:/out" -w /repo
           ghcr.io/gitleaks/gitleaks@sha256:c00b6bd0aeb3071cbcb79009cb16a60dd9e0a7c60e2be9ab65d25e6bc8abbb7f
           git --redact --no-banner --exit-code 0 --report-format json --report-path /out/gitleaks.json /repo
       - name: semgrep по всему дереву
+        if: steps.plan.outputs.semgrep == 'true'
         run: >
-          docker run --rm -v "$PWD:/src" -v "$RUNNER_TEMP/out:/out" -w /src
+          mkdir -p "$RUNNER_TEMP/out" && docker run --rm -v "$PWD:/src" -v "$RUNNER_TEMP/out:/out" -w /src
           semgrep/semgrep@sha256:4a34048c04fef049f71665047f074cffb00cc3d89482f965a5cd151d589237af
           semgrep scan --config p/default --metrics=off --quiet --json --output /out/semgrep.json .
       - name: Находки в issue
+        if: steps.plan.outputs.semgrep == 'true'
         env:
           GH_TOKEN: ${{ secrets.SECURITY_INFRA_TOKEN }}
         run: >
@@ -62,6 +82,7 @@ jobs:
           --gitleaks "$RUNNER_TEMP/out/gitleaks.json" --semgrep "$RUNNER_TEMP/out/semgrep.json"
           --telegram-out "$RUNNER_TEMP/out/telegram.txt"
       - name: Строка владельцу в Telegram
+        if: steps.plan.outputs.full == 'true'
         env:
           BOT_TOKEN: ${{ secrets.ALERT_TELEGRAM_BOT_TOKEN }}
           CHAT_ID: ${{ secrets.ALERT_TELEGRAM_CHAT_ID }}
