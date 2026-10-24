@@ -26,6 +26,10 @@
 5. Update dependent docs/tests/contracts in the same task.
 6. Split delivery into small, testable milestones.
 
+**UI kit.** A repository with a `vendor/uikit/` folder carries the owner's UI kit as a committed copy. Before any UI change, read `vendor/uikit/AGENTS-uikit.md` and run `python3 vendor/uikit/sync.py --check`. Exit 1 or 2 means the kit is behind: say so and offer the update as a separate task, never inside the current one. Exit 4 means the check could not run: say so and keep working. The rules file says what to do on the other codes. Files inside `vendor/uikit/` are never edited by hand. Layout checks of the app call the kit's audit module; the app keeps no copy of the kit's layout rules or reference screen sizes.
+
+**Skills describe the process, owners keep the values.** Shared skills and this canon say how to work. Numbers, thresholds, screen sizes, file names of a concrete application and rules owned by a design system, a product or a host stay with their owner, and a skill refers to that owner instead of copying the value. A case write-up may quote them as evidence, in a paragraph of its own that starts with the case label.
+
 ## Command sources (Cursor slash commands)
 
 > **Cursor only** — Claude Code agents: skip this section; use **Skill Routing** below instead.
@@ -89,6 +93,7 @@ When you need the text of a command template, read **`~/.cursor/commands/<name>.
 - Use "ui-github-link" to add a GitHub repository button or header link in desktop or web app UI (PySide6, QML, SwiftUI, AppKit, browser).
 - Use "web-ui-design" for browser-based UI design intake and routing when the design approach is unset (landing pages, dashboards, HTML/CSS, React/Vue, styled web apps).
 - Use "initialize-ai-task" only when the user explicitly asks to create or enable `.ai-task` infrastructure in the current repo.
+- Use "security-audit" for a deep security check by event (a new public host or service, or once a quarter): it runs gitleaks, Semgrep and OWASP ZAP baseline in Docker, separates false positives, writes a SECURITY-REVIEW.md report and files one backlog task per finding. The per-PR and weekly scans are templates of "bootstrap-project", not this skill. Not for a diff review (the built-in /security-review), not Python-only remediation ("py-security"). Findings of a public repository go to a private place, never to its public issues.
 - Use "bootstrap-project" to set up or connect a new project folder: detect the Github collection, init or connect git and a GitHub remote, and add the shared "AGENTS.md" as a committed copy (idempotent, re-runnable). Reach for it on "bootstrap project", "connect to GitHub", or "wire up the shared rules".
 
 ## Boundaries
@@ -126,6 +131,8 @@ This is not about access. A public repository is usually public on purpose, and 
 - Run relevant checks for changed behavior (tests/lint/build where applicable).
 - For contract changes, verify producer and consumer compatibility.
 - Report verification outcome clearly and list unresolved risks.
+
+**Tests and CI run in about a minute.** This holds for the full local test run and for one CI run. A run longer than a couple of minutes is a defect. The session that sees it fixes it in that session and does not file it in the backlog for later. Tests run on all cores by default, a browser starts once per worker process, and a check is not repeated in variants that cannot change its result. While you wait for CI, say in one line in the chat what you are waiting for and how long is left.
 
 ## Pushing when CI is metered
 
@@ -204,7 +211,7 @@ An intent is big work the owner states as a goal ("Намерение: ...", or 
 2. **Ask only what is the owner's to decide.** When the owner would approve a choice anyway, make it yourself and say which option you took. Questions are only about taste, money, access, and public or irreversible steps, and they go out together in one message.
 3. **Never wait on a task-level decision.** Take the option the project documents name (the more conservative one when they name none), record it, and keep the work moving.
 4. **Notice stuck and slow work before the owner does.** Throughput is part of the intent. The role that sees a task standing still or a round running slower than the last one raises it and acts on it without waiting for a status question.
-5. **Treat every owner intervention as a defect of the system.** A nudge, a correction, a quality complaint or a status question from the owner means a mechanism missed something. The retrospective files the change that would have caught it, through the usual improvement channel.
+5. **Treat every owner intervention as a defect of the system.** A nudge, a correction, a quality complaint or a status question from the owner means a mechanism missed something. An act of a helper agent outside the pipeline is the same kind of defect, for example a desktop watcher closing an orphaned pull request: the ideal is a watcher that finds nothing. The retrospective files the change that would have caught it, through the usual improvement channel, and files separately the class or check that should have seen the case, apart from its cause.
 6. **Report briefly, in the owner's language, and end with who does what.** State lives in issues and documents, so the owner can close the chat after any report. The last lines say what you do next and what, if anything, the owner has to do.
 
 ## Keep This File Lean
