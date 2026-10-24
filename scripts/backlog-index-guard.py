@@ -24,7 +24,7 @@ refresh shows up in `git status` instead of ageing silently.
 
 Bundled from: ai_task/_shared.py, ai_task/backlog.py, ai_task/backlog_store.py (intra-package imports, comments and docstrings
 stripped).
-Source digest: sha256:8145e75f16117fd67d28a4dae1e590418098153ca19e17a66f2b699dced6fac8 (bundle format 3).
+Source digest: sha256:82caaaf648b00212f587fee8ff0703424b3d79bf77aa2ddd49bc63d00fcc1cc2 (bundle format 3).
 """
 
 # Inert to linters and formatters BY CONSTRUCTION, so a repo that
@@ -941,11 +941,25 @@ def phase_problems(repo: Path) -> list[str]:
     return problems
 
 
-def _verify_fallback_exists(repo: Path) -> bool:
-    return (repo / APP_DIR / "policies").is_dir()
+def _verify_fallback_exists(repo: Path, *, tracked_only: bool = False) -> bool:
+    policies = repo / APP_DIR / "policies"
+    if not policies.is_dir():
+        return False
+    if not tracked_only:
+        return True
+    try:
+        listed = subprocess.run(
+            ["git", "-C", str(repo), "ls-files", "--", f"{APP_DIR}/policies"],
+            capture_output=True,
+            text=True,
+            check=True,
+        ).stdout
+    except (OSError, subprocess.CalledProcessError):
+        return True
+    return bool(listed.strip())
 
 
-def block_problems(repo: Path) -> list[str]:
+def block_problems(repo: Path, *, tracked_policy_only: bool = False) -> list[str]:
     tasks = parse_task_files(repo)
     if not tasks:
         return []
@@ -958,8 +972,14 @@ def block_problems(repo: Path) -> list[str]:
             f"{task_file_rel(gap.task_id)}:{lineno}: {gap.field} - "
             f"{gap.reason}{detail}"
         )
-    if _verify_fallback_exists(repo):
+    if _verify_fallback_exists(repo, tracked_only=tracked_policy_only):
         return problems
+    where = "tracks no" if tracked_policy_only else "has no"
+    why = (
+        " (a gitignored local policy does not count: CI never sees it)"
+        if tracked_policy_only
+        else ""
+    )
     for task in tasks:
         if not task.is_open:
             continue
@@ -970,8 +990,8 @@ def block_problems(repo: Path) -> list[str]:
             detail = f" | {text.strip()!r}" if text.strip() else ""
             problems.append(
                 f"{task_file_rel(task.id)}:{lineno}: {key} - missing "
-                f"`{key}:` line, and this repo has no `.ai-task/policies/` "
-                f"whose `default_profile` could supply one{detail}"
+                f"`{key}:` line, and this repo {where} `.ai-task/policies/` "
+                f"whose `default_profile` could supply one{why}{detail}"
             )
     return problems
 
@@ -1000,7 +1020,7 @@ def check(repo: Path) -> list[str]:
     return [
         *index_drift_problems(repo),
         *phase_problems(repo),
-        *block_problems(repo),
+        *block_problems(repo, tracked_policy_only=True),
         *cancel_problems(repo),
     ]
 
@@ -1536,7 +1556,7 @@ def main(argv: list[str] | None = None) -> int:
 # sha256 over the bundled module sources plus the generator templates. The
 # store's `guard --check` recomputes it from the local modules, so a copy that
 # fell behind the profile - or was hand-edited - is detected, not trusted.
-GUARD_SOURCE_SHA256 = "8145e75f16117fd67d28a4dae1e590418098153ca19e17a66f2b699dced6fac8"
+GUARD_SOURCE_SHA256 = "82caaaf648b00212f587fee8ff0703424b3d79bf77aa2ddd49bc63d00fcc1cc2"
 GUARD_REL = "scripts/backlog-index-guard.py"
 
 
