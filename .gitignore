@@ -33,3 +33,4 @@ sparkle_private*
 # `ai-task init`; runtime state (runs, worktrees, quota, telemetry) is
 # machine-local. Nothing here is committed.
 .ai-task/
+/AGENTS.md
