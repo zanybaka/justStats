@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **Read-only mounts no longer appear in the volume list** — mounted .dmg images and
+  write-protected cards are filtered out: their free space can never change, so a stats
+  row was noise. A volume is hidden only when the filesystem explicitly reports it
+  read-only; read-write disk images such as sparsebundle backups stay visible.
+
 ### Fixed
 
 - Fixed a crash in the largest-files scanner (SCAN-008): closing the largest-files

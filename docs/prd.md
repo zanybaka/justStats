@@ -131,7 +131,7 @@ Both reference products are general system-monitoring "combines" (CPU/GPU/RAM/di
 ## Assumptions
 
 - UI language: English only for v1 (no localization requested; open-source audience is technical/English-comfortable).
-- System/service APFS containers not meaningful to an end user (Preboot, Recovery, VM, hidden Data volume internals) are filtered out; only user-facing mounted volumes are shown. Internal boot volume itself is always shown and drives icon color.
+- System/service APFS containers not meaningful to an end user (Preboot, Recovery, VM, hidden Data volume internals) are filtered out; only user-facing mounted volumes are shown. Internal boot volume itself is always shown and drives icon color. Read-only mounts (a mounted .dmg image, a write-protected card) are filtered out too: their free space can never change, so a stats row is noise; a volume is hidden only when the filesystem explicitly reports it read-only, and read-write disk images (e.g. sparsebundle backups) stay visible.
 - Visual design (a polished, high-quality UX) is deferred to implementation/design pass — expected direction: per-row usage bar + color coding, consistent with the diskbar.app reference, refined during build rather than specified exhaustively here.
 - Default thresholds: red < 10 GB free, yellow < 20 GB free, both on the system/boot volume, both user-overridable (absolute GB or %) via Settings.
 - No telemetry/analytics is added — this is a privacy-first personal/OSS utility; success is judged qualitatively by the author, not via instrumented events (explicit deviation from the standard measurement-plan bar, see below).

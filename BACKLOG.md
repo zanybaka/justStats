@@ -135,7 +135,7 @@ screenshots. Both should be real before the repo goes public / v1.0.0 is announc
 ## Phase 15 — Bug fixes (2026-07-12, from crash-report analysis)
 
 - [x] [SCAN-008](backlog/tasks/SCAN-008.md) Fix deinit deadlock in SpotlightLargestFilesScanner (dispatch_sync on own stateQueue)
-- [ ] [SCAN-009](backlog/tasks/SCAN-009.md) Same deinit trap in SpotlightCategoryScanner (found while fixing SCAN-008)
+- [ ] [SCAN-009](backlog/tasks/SCAN-009.md) Same deinit trap as SCAN-008 in SpotlightCategoryScanner
 
 ## Phase 16 — Reclaimable space cleanup (2026-10-11, from manual cleanup session)
 
@@ -148,3 +148,11 @@ Deferred 2026-11-21: cleanup moves to the separate macos-cleanup app; justStats 
 - [~] [CLEAN-004](backlog/tasks/CLEAN-004.md) Clean action: allowlisted external commands (docker, uv, npm, brew)
 - [~] [CLEAN-005](backlog/tasks/CLEAN-005.md) Copy AI prompt for deeper analysis (English, with preview)
 - [~] [CLEAN-006](backlog/tasks/CLEAN-006.md) Destructive-action safety review for cleanup
+
+## Phase 17 — Volume list refinements (2026-11-21, live feedback)
+
+Running the app next to a mounted .dmg showed that read-only mounts render as volume
+rows whose numbers can never change. Such rows are noise for a stats panel, so the
+volume list learns to hide volumes that provably cannot change.
+
+- [x] [VOL-007](backlog/tasks/VOL-007.md) Hide read-only volumes (mounted .dmg images, write-protected cards) from the volume list

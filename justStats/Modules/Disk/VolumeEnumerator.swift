@@ -77,6 +77,9 @@ struct VolumeInfo: Equatable {
     var isLocal: Bool? = nil
     var isRemovable: Bool? = nil
     var isEjectable: Bool? = nil
+    /// True on mounted .dmg images, write-protected cards and other read-only
+    /// mounts; `nil` when the filesystem did not report it (fail open — shown).
+    var isReadOnly: Bool? = nil
 }
 
 /// Seam between `VolumeEnumerator` and the real filesystem (mockable in tests).
@@ -104,6 +107,7 @@ struct FileManagerVolumeInfoProvider: VolumeInfoProviding {
         .volumeIsLocalKey,
         .volumeIsRemovableKey,
         .volumeIsEjectableKey,
+        .volumeIsReadOnlyKey,
         .volumeTotalCapacityKey,
         .volumeAvailableCapacityKey,
     ]
@@ -114,6 +118,7 @@ struct FileManagerVolumeInfoProvider: VolumeInfoProviding {
         .volumeIsLocalKey,
         .volumeIsRemovableKey,
         .volumeIsEjectableKey,
+        .volumeIsReadOnlyKey,
     ]
 
     /// Metadata-only DiskArbitration session; never handed a dispatch queue or
@@ -135,7 +140,8 @@ struct FileManagerVolumeInfoProvider: VolumeInfoProviding {
                 isInternal: values?.volumeIsInternal,
                 isLocal: values?.volumeIsLocal,
                 isRemovable: values?.volumeIsRemovable,
-                isEjectable: values?.volumeIsEjectable
+                isEjectable: values?.volumeIsEjectable,
+                isReadOnly: values?.volumeIsReadOnly
             )
         }
     }
@@ -221,9 +227,14 @@ extension VolumeEnumerator {
     /// PRD Assumptions: only user-facing volumes are shown. The root presentation
     /// `/` (backed by the Data volume) is kept; everything mounted under
     /// `/System/Volumes` — including the raw `/System/Volumes/Data` mount that
-    /// backs it — is a service volume and dropped. Hidden volumes never reach this
-    /// filter (`.skipHiddenVolumes` in the provider).
+    /// backs it — is a service volume and dropped. Read-only mounts (a mounted
+    /// .dmg image, a write-protected card) are dropped too: their free space can
+    /// never change and no file action applies, so a stats row is noise (VOL-007).
+    /// The flag must be explicit — `nil`/unknown fails open, and a read-write disk
+    /// image (e.g. a sparsebundle backup) stays visible. Hidden volumes never
+    /// reach this filter (`.skipHiddenVolumes` in the provider).
     static func isUserFacing(_ info: VolumeInfo) -> Bool {
+        if info.isReadOnly == true { return false }
         let path = info.mountURL.path
         if path == "/" { return true }
         if path == systemVolumesPrefix || path.hasPrefix(systemVolumesPrefix + "/") { return false }
