@@ -50,3 +50,5 @@ screenshots. Both should be real before the repo goes public / v1.0.0 is announc
 ## Phase 15 — Bug fixes (2026-07-12, from crash-report analysis)
 
 ## Phase 16 — Reclaimable space cleanup (2026-10-11, from manual cleanup session)
+
+Deferred 2026-11-21: cleanup moves to the separate macos-cleanup app; justStats stays statistics-only.

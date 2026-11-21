@@ -1,6 +1,7 @@
 ## Phase 16 — Reclaimable space cleanup (2026-10-11, from manual cleanup session)
 
-- [ ] CLEAN-002 Reclaimable space section in the popover (read-only)
+- [~] CLEAN-002 Reclaimable space section in the popover (read-only)
+Deferred 2026-11-21: cleanup moves to the separate macos-cleanup app; justStats stays statistics-only.
 Task Context
 SwiftUI section under largest files per FR14: rows with name, size, tier badge, Reveal in Finder for path-based rules. Shown only when items exist. No Clean action yet. Adaptive light/dark per UX-007 style, hover and cursor per UX-014/016.
 Task DOD

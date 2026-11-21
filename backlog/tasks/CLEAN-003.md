@@ -1,6 +1,7 @@
 ## Phase 16 — Reclaimable space cleanup (2026-10-11, from manual cleanup session)
 
-- [ ] CLEAN-003 Clean action: delete known directory with inline confirmation
+- [~] CLEAN-003 Clean action: delete known directory with inline confirmation
+Deferred 2026-11-21: cleanup moves to the separate macos-cleanup app; justStats stays statistics-only.
 Task Context
 FR15 directory-delete path per TECHSPEC §12.2: Clean button, inline confirmation naming path and size, removeItem on a URL equal to the rule's declared path, symlinks not followed, must be inside home and not home itself, guardrail refuses while the guarded process runs, bytes freed shown. Same confirmation pattern as ACT-002.
 Task DOD

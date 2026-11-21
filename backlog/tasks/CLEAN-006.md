@@ -1,6 +1,7 @@
 ## Phase 16 — Reclaimable space cleanup (2026-10-11, from manual cleanup session)
 
-- [ ] CLEAN-006 Destructive-action safety review for cleanup
+- [~] CLEAN-006 Destructive-action safety review for cleanup
+Deferred 2026-11-21: cleanup moves to the separate macos-cleanup app; justStats stays statistics-only.
 Task Context
 Audit CLEAN-003/004 like ACT-003: every delete and command path, allowlist exhaustiveness, path-guard bypass attempts (symlink, .., case-insensitive volume), confirmation bypass by double activation, accessibility of the confirm flow, behavior when the tool or app is running.
 Risk: Executes external programs and permanent deletes; must pass review before release.
