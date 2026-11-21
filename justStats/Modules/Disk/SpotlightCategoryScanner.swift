@@ -1,4 +1,5 @@
 import Foundation
+import os
 
 /// Real Spotlight implementation of `CategoryScanning` (SCAN-001, TECHSPEC §4).
 ///
@@ -53,7 +54,9 @@ final class SpotlightCategoryScanner: CategoryScanning {
         let observer: NSObjectProtocol
     }
 
-    /// All state below is confined to `stateQueue`. Grouped per generation so a
+    /// State for one generation, reached through the lock-protected `state.current`
+    /// slot; once a stateQueue block holds a `Scan`, its mutable fields belong to that
+    /// thread alone (`deinit` aside — see `state`). Grouped per generation so a
     /// superseded scan tears down cleanly.
     private final class Scan {
         let generation: UInt64
@@ -69,8 +72,29 @@ final class SpotlightCategoryScanner: CategoryScanning {
         }
     }
 
-    /// Serializes generation bookkeeping and the active-scan slot.
+    /// Orders scanner operations: `scan`/`cancel` supersession and the per-query
+    /// follow-ups hop here so they run first-in-first-out. ORDERING ONLY — the mutable
+    /// state this queue used to guard lives in `state` behind an unfair lock instead,
+    /// because a serial queue cannot be touched from `deinit` (SCAN-009).
     private let stateQueue = DispatchQueue(label: QueueLabels.categoryScanState)
+
+    /// Scanner state — the active-scan slot and the refresh generation — behind an
+    /// unfair lock rather than stateQueue confinement so ANY thread can read or drain
+    /// it. That includes `deinit`, which runs on the stateQueue thread when an
+    /// in-flight block held the last strong reference; the old `stateQueue.sync`
+    /// teardown from there dispatched onto the queue owned by the current thread and
+    /// trapped (SCAN-009, same class as SCAN-008). A `Scan`'s own mutable fields
+    /// (`active`, `results`) stay confined to stateQueue blocks; `deinit` may touch
+    /// them too, which is safe because once it has drained `current` under the lock no
+    /// stateQueue block can still reach that `Scan` (blocks re-read `current` first).
+    private let state = OSAllocatedUnfairLock(initialState: ScannerState())
+
+    /// The lock-protected scanner state (see `state`).
+    private struct ScannerState {
+        /// Refresh token: notifications tagged with an older generation are ignored.
+        var generation: UInt64 = 0
+        var current: Scan?
+    }
     /// The background run loop `NSMetadataQuery` notifications are delivered on.
     private let runLoopThread: MetadataQueryRunLoopExecuting
     private let deliverQueue: DispatchQueue
@@ -85,9 +109,6 @@ final class SpotlightCategoryScanner: CategoryScanning {
     /// sizes without touching the real filesystem; the default reads
     /// `.totalFileAllocatedSizeKey`.
     private let onDiskSizing: OnDiskSizing
-    /// Refresh token: notifications tagged with an older generation are ignored.
-    private var generation: UInt64 = 0
-    private var current: Scan?
 
     /// - Parameters:
     ///   - runLoopThread: the executor owning the query run loop; the default starts a
@@ -113,10 +134,13 @@ final class SpotlightCategoryScanner: CategoryScanning {
     }
 
     deinit {
-        // Tear down synchronously on dealloc so no query outlives the scanner.
-        let scan = stateQueue.sync { () -> Scan? in
-            let scan = current
-            current = nil
+        // Tear down synchronously on dealloc so no query outlives the scanner. The
+        // unfair lock is takeable from any thread — including the stateQueue thread
+        // an in-flight block may be running deinit on, where the old `stateQueue.sync`
+        // dispatched onto the queue owned by the current thread and trapped (SCAN-009).
+        let scan = state.withLock { state -> Scan? in
+            let scan = state.current
+            state.current = nil
             return scan
         }
         if let scan { tearDown(scan) }
@@ -128,13 +152,15 @@ final class SpotlightCategoryScanner: CategoryScanning {
     func scan(volumeURL: URL, onResult: @escaping (CategoryBreakdown) -> Void) {
         stateQueue.async { [weak self] in
             guard let self else { return }
-            if let previous = self.current {
-                self.tearDown(previous)
-                self.current = nil
+            let (previous, generation) = self.state.withLock { state -> (Scan?, UInt64) in
+                let previous = state.current
+                state.current = nil
+                state.generation &+= 1
+                return (previous, state.generation)
             }
-            self.generation &+= 1
-            let scan = Scan(generation: self.generation, volumeURL: volumeURL, deliver: onResult)
-            self.current = scan
+            if let previous { self.tearDown(previous) }
+            let scan = Scan(generation: generation, volumeURL: volumeURL, deliver: onResult)
+            self.state.withLock { $0.current = scan }
             self.startQueries(for: scan)
         }
     }
@@ -142,11 +168,13 @@ final class SpotlightCategoryScanner: CategoryScanning {
     func cancel() {
         stateQueue.async { [weak self] in
             guard let self else { return }
-            self.generation &+= 1 // any in-flight notification is now stale
-            if let scan = self.current {
-                self.tearDown(scan)
-                self.current = nil
+            let scan = self.state.withLock { state -> Scan? in
+                state.generation &+= 1 // any in-flight notification is now stale
+                let scan = state.current
+                state.current = nil
+                return scan
             }
+            if let scan { self.tearDown(scan) }
         }
     }
 
@@ -227,7 +255,8 @@ final class SpotlightCategoryScanner: CategoryScanning {
         let (bytes, count) = aggregate(query)
         query.stop()
         stateQueue.async { [weak self] in
-            guard let self, let scan = self.current, scan.generation == generation else { return }
+            guard let self else { return }
+            guard let scan = self.state.withLock({ $0.current }), scan.generation == generation else { return }
             scan.results[category] = (bytes: bytes, count: count)
             guard scan.results.count == FileCategory.allCases.count else { return }
             self.completeAndDeliver(scan)
@@ -250,19 +279,23 @@ final class SpotlightCategoryScanner: CategoryScanning {
             other: result(.other)
         )
         tearDown(scan)
-        if current?.generation == scan.generation { current = nil }
+        state.withLock { state in
+            if state.current?.generation == scan.generation { state.current = nil }
+        }
         let generation = scan.generation
         let deliver = scan.deliver
         deliverQueue.async { [weak self] in
             guard let self else { return }
-            guard self.stateQueue.sync(execute: { self.generation == generation }) else { return }
+            guard self.state.withLock({ $0.generation == generation }) else { return }
             deliver(breakdown)
         }
     }
 
     /// Stops every live query in `scan`, removes its observer, and drops the query
     /// objects — nothing keeps gathering or leaks after this (SCAN-007). Runs on
-    /// `stateQueue`; the `stop()` hops to the run-loop thread the queries live on.
+    /// `stateQueue`, or from `deinit` (safe from any thread: after the deinit drained
+    /// `current` under the lock, nothing else can reach the `Scan`); the `stop()` hops
+    /// to the run-loop thread the queries live on.
     private func tearDown(_ scan: Scan) {
         let active = scan.active
         scan.active.removeAll()

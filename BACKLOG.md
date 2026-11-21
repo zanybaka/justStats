@@ -135,7 +135,7 @@ screenshots. Both should be real before the repo goes public / v1.0.0 is announc
 ## Phase 15 — Bug fixes (2026-07-12, from crash-report analysis)
 
 - [x] [SCAN-008](backlog/tasks/SCAN-008.md) Fix deinit deadlock in SpotlightLargestFilesScanner (dispatch_sync on own stateQueue)
-- [ ] [SCAN-009](backlog/tasks/SCAN-009.md) Same deinit trap as SCAN-008 in SpotlightCategoryScanner
+- [x] [SCAN-009](backlog/tasks/SCAN-009.md) Same deinit trap as SCAN-008 in SpotlightCategoryScanner
 
 ## Phase 16 — Reclaimable space cleanup (2026-10-11, from manual cleanup session)
 
