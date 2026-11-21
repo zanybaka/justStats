@@ -25,7 +25,7 @@ Reference product: [diskbar.app](https://diskbar.app) (menu bar disk monitor for
 
 - RAM monitoring (planned v2).
 - Network monitoring (planned v2).
-- Whole-volume actions: eject, format, rename, encrypt, etc. — only file-level actions (reveal, trash) are in scope, see Functional Requirements.
+- Whole-volume actions: format, rename, encrypt, etc. — only file-level actions (reveal, trash) and ejecting an external/network volume (FR17) are in scope, see Functional Requirements.
 - S.M.A.R.T./disk health diagnostics.
 - Historical usage graphs or trend tracking over time (only current-state category breakdown, not a timeline).
 - Low-space push notifications/alerts (only the passive icon color signal).
@@ -61,7 +61,7 @@ Reference product: [diskbar.app](https://diskbar.app) (menu bar disk monitor for
 | FR6 | Each volume shows a category breakdown of used space (System / Apps / Media / Other / Free) as a stacked visual bar. |
 | FR7 | Each volume exposes a "largest files" list (top N, e.g. 10–20), showing file name, size, and path. |
 | FR8 | Each largest-file entry supports **Reveal in Finder** and **Move to Trash**, actioned directly from the dropdown. Move to Trash requires an inline confirmation before executing (destructive action guard). |
-| FR9 | The volume list can be sorted by fullness (most-full first). No whole-volume actions (eject, format, rename) are supported in v1. |
+| FR9 | The volume list can be sorted by fullness (most-full first). Whole-volume actions other than eject (FR17) — format, rename — are not supported in v1. |
 | FR10 | A Settings window exposes red/yellow thresholds, each configurable as absolute GB or percentage of total capacity. |
 | FR11 | A "Launch at Login" toggle is available in Settings. |
 | FR12 | The app checks for and can install updates via Sparkle, using a self-signed update feed (no Apple Developer ID/notarization dependency). |
@@ -69,6 +69,7 @@ Reference product: [diskbar.app](https://diskbar.app) (menu bar disk monitor for
 | FR14 | The popover has a "Reclaimable space" section listing items from a built-in rule catalog that exist on this Mac and exceed a size floor (default 100 MB): name, size, safety tier (green/yellow). Items are found by fixed rules (known paths or known CLI tools), never by heuristics. Shown only when at least one item is found. No push notifications. |
 | FR15 | Each green-tier item has a **Clean** action that runs after an inline confirmation naming what will happen and the size freed. The action is either deleting a known directory (permanently, not via Trash) or running one fixed command from a compiled-in allowlist (the exact command is shown in the confirmation). Yellow-tier items are listed with an explanation but have no one-click action. Errors are shown in the row. |
 | FR16 | A "Still short on space? Copy AI prompt" action copies an English prompt to the clipboard for use with an external AI assistant. A preview is shown before copying. The prompt carries the volume's free space, the category breakdown, the items from FR14 and a fixed safety preamble (read-only first, confirm before any deletion). The app itself performs no AI calls. |
+| FR17 | External and network volume rows offer an **Eject** button (never the boot volume or internal fixed disks). It unmounts the volume — and, for a multi-volume stick, every volume on the same disk, like Finder — via DiskArbitration, with no admin rights. On success the row leaves the list without reopening the popover. If the system refuses because something is using the volume, an inline panel under the row names the volume and the holder in plain English (a built-in dictionary of known system holders, e.g. Spotlight indexing, Time Machine backup; an unknown holder is shown honestly as the process name and PID) and offers **Retry** and **Force Eject**. Force Eject always warns first that data the holder is writing can be lost. |
 
 ## ADR-Candidate Decisions
 
@@ -171,3 +172,8 @@ Per the standard PRD bar, metrics should be tied to an instrumented data source 
 | Author no longer opens Finder/Дисковая утилита to check free space during normal daily use | Self-observation by the author (no instrumentation) | the author | 14 days after v1 first release (date TBD — pin once release ships) |
 
 Any future decision to add real instrumentation (e.g., a local, non-networked usage counter) becomes an ordinary backlog task, with its check-back review routed through the metrics-review flow once instrumented.
+
+- **ADR-CANDIDATE: Eject via DiskArbitration `DADiskUnmount`, naming the holder through the dissenter's process ID (resolved at runtime, no `lsof`/sudo).**
+  Rationale: macOS's own refusal ("one or more programs may be using it") never names the blocker; `diskutil` does, from the DiskArbitration dissenter. `DADiskUnmount` needs no admin rights and returns the dissenter, whose PID gives a precise, instant answer. The PID getter (`DADissenterGetProcessID`) is exported by the framework but absent from the public headers, so it is looked up with `dlsym` and the feature degrades to "a program is using it" if it ever disappears.
+  Alternatives considered: `NSWorkspace.unmountAndEjectDevice` / `FileManager.unmountVolume` only (supported API, but the error carries no holder — the original complaint); parsing `lsof` output (slow, and blind to root daemons such as `mds_stores` without sudo); scanning open files with libproc (same blindness to root processes); linking the private DiskManagement framework (heavier private surface than one exported symbol).
+  Promoted to ADR: `ADR/007-diskarbitration-eject-with-holder.md` (Accepted).

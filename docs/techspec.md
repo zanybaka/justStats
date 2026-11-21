@@ -40,6 +40,7 @@ App archetype (per the skill's own taxonomy): **Menu-bar app** — "lives in men
 | FR14 (reclaimable section) | `CleanupCatalog` — static table of `CleanupRule` values (id, name, detection, size probe, safety tier, action). `ReclaimableScanner` evaluates rules lazily on popover open, off the main thread, like the other scanners. See §12. |
 | FR15 (Clean action) | `CleanupExecutor` — `.deleteDirectory(URL)` via `FileManager.removeItem` after the guard checks, or `.runCommand(AllowedCommand)` via `Process` with a fixed argv, timeout and no shell. See §12. |
 | FR16 (AI prompt) | `AIPromptBuilder` — pure function producing the English prompt text from scanner output; copied with `NSPasteboard`. See §12. |
+| FR17 (eject volume) | `VolumeEjecting` seam; production `DiskArbitrationVolumeEjector` (`DADiskUnmount` on the whole disk) names the refusing process via the dissenter PID. `VolumeListViewModel` holds per-volume `EjectState` and drops rows on `NSWorkspace.didUnmountNotification`. See §13. |
 | NFR1–NFR4 (performance) | Enforced by design: only one cheap `statfs` call runs continuously; all expensive work (Spotlight queries, full enumeration) is on-demand and off the main thread. See §7. |
 
 ## 3. Refresh Model (resolved architecture question)
@@ -110,6 +111,7 @@ This is a default, not exhaustively validated — flagged for adjustment once re
 - **Reliability — external/network volumes:** all `statfs`/Spotlight calls for non-internal volumes run off the main thread (`DispatchQueue.global(qos: .utility)`); a hung SMB mount can only delay that specific row's data, never the popover's initial render or the internal-disk rows.
 - **Security — Full Disk Access:** requested **lazily**, not at first launch. The app attempts Spotlight/category queries normally; if a volume's results come back empty/incomplete in a way consistent with a permissions block, the popover shows an inline notice ("Grant Full Disk Access for complete data") with a button opening `x-apple.systempreferences:com.apple.preference.security?Privacy_AllFiles` directly.
 - **Security — Move to Trash:** uses `FileManager.trashItem(at:resultingItemURL:)` (recoverable via macOS Trash, never `removeItem` / permanent delete), gated by an inline confirmation dialog before the call (PRD FR8).
+- **Security — Eject:** unmounting uses DiskArbitration with the current user's rights (no sudo, no helper, no shell, no `lsof`). Force Eject is a second explicit tap after a data-loss warning (PRD FR17). Process names/PIDs of other programs are shown in the UI only, never logged or sent anywhere.
 - **Data at rest:** no telemetry, no network calls except Sparkle's update check and GitHub Release asset download — nothing else leaves the machine.
 
 ## 8. UI/Layout Notes (grounded in verified sources, not invented)
@@ -172,6 +174,7 @@ Sourced from two places only: (a) a technical article on `NSStatusItem` that dir
 - Sparkle auto-update with a self-managed EdDSA key, no Apple notarization/Developer ID — §6. Promoted to ADR: `ADR/004-sparkle-without-notarization.md` (Accepted).
 - `SMAppService` for launch-at-login instead of reusing Stats' legacy helper-executable pattern — §5 (corrects PRD's original ADR-CANDIDATE after source inspection). Promoted to ADR: `ADR/005-smappservice-launch-at-login.md` (Accepted).
 - Mirror Stats' `Kit`/`Modules` structural pattern for the module boundary, without adopting its `DiskArbitration`-as-event-source approach (Stats itself doesn't use it that way either) — §1, §3.
+- Eject with holder naming via the DiskArbitration dissenter PID (resolved at runtime), no `lsof`/sudo — §13. Promoted to ADR: `ADR/007-diskarbitration-eject-with-holder.md` (Accepted).
 - Rule-catalog cleanup (directory delete + allowlisted commands, no heuristics, no AI) — §12. Promoted to ADR: `ADR/006-rule-catalog-cleanup.md` (Deferred 2026-11-21).
 
 ## 12. Reclaimable Space Cleanup (FR14–FR16)
@@ -211,3 +214,28 @@ struct CleanupRule {
 `AIPromptBuilder` output (English) has four parts: (1) role and hard rules — analysis is read-only first, report before proposing, never delete without explicit confirmation, never run `rm -rf` on a variable or home-level path, measure with allocated size and beware symlink double counting, check last-used time before calling something stale; (2) the machine facts the app already knows — volume, total/free, category breakdown, largest files (paths); (3) what the catalog already offered and what was cleaned; (4) the ask — find the next biggest safe wins and list them with size, last-used date and how to reverse.
 
 The preview dialog shows the full text before it is copied; file paths in the prompt are the only personal data and nothing leaves the Mac unless the user pastes it.
+
+## 13. Volume Eject (FR17)
+
+**UI.** External and network volume rows (and `.unavailable` deferred rows — a hung share is the mount most worth unmounting) show an eject glyph button (`HoverFillButtonStyle`, revealed on row hover). It is never offered on the boot volume — checked by path `/`, so macOS booted from an external SSD is covered too — nor on internal fixed disks or `.pending` rows (`VolumeListViewModel.Row.isEjectable`). The panel under a row follows the Move-to-Trash inline-confirmation pattern (§8), not a modal.
+
+**State machine** (`VolumeListViewModel.EjectState`, per mount URL): idle → `.ejecting` → success (row removed) | `.refused(message)` | `.failed(message)`. From `.refused`: Retry re-issues the plain unmount; Force Eject → `.confirmingForce` (shows the data-loss warning) → second tap re-issues with the force option. A late completion for a state that is no longer `.ejecting` is dropped; state survives Refresh for rows that still exist.
+
+**Removal.** The model observes `NSWorkspace.didUnmountNotification` (through an injected `NotificationCenter`) while the popover is open and drops the row for each unmounted URL — so every volume of an ejected multi-volume stick leaves the list, and a volume ejected from Finder disappears too. The observer is removed in `invalidate()`.
+
+**Seam: `VolumeEjecting`** — `eject(volumeAt:force:completion:)` delivering `EjectResult` (`success` | `refused(holder:)` | `failed(reason:)`) on the main queue. Mockable like `VolumeInfoProviding` (`MockVolumeEjector`); the view model never touches DiskArbitration.
+
+**Production: `DiskArbitrationVolumeEjector`.**
+- The volume's `DADisk` comes from `DADiskCreateFromVolumePath`; `DADiskCopyWholeDisk` + `kDADiskUnmountOptionWhole` unmounts every volume on the physical disk, like Finder; `kDADiskUnmountOptionForce` is added for Force Eject. After a successful unmount a best-effort `DADiskEject` powers the media off. Callbacks run on a private queue (`QueueLabels.volumeEject`) and complete on main.
+- **Holder.** On dissent the status is `EBUSY` (observed `0xc010`, no status string). The holder PID comes from `DADissenterGetProcessID`: exported by the DiskArbitration framework (present in its `.tbd`) but **not in the public headers**, so it is resolved with `dlsym` at first use; if absent, the refusal reads "a program is using it". Verified on macOS 15.7.5 / SDK 26.2 with a real mounted image held by a process: the PID matches `diskutil unmount`'s "dissented by PID …".
+- **Process name.** `proc_name` returns nothing for other users' processes (it is empty for `mds_stores`, the usual holder), so the name falls back to `sysctl(kern.proc.pid)` `p_comm`, which any user can read.
+- **Network mounts** have no DiskArbitration disk: plain eject uses `FileManager.unmountVolume(at:options:)`, Force uses `unmount(2)` with `MNT_FORCE`. These paths name no holder (a busy network volume reads "a program is using it"). Not exercised against a real SMB/NFS share in this task.
+- **Which sibling refused.** On a multi-volume stick the dissenter does not say which volume's holder dissented; the message names the volume the user pressed Eject on plus the holder.
+
+**Holder phrases** (`EjectMessages.knownHolderPhrases`, English only): `mds_stores` → Spotlight indexing, usually releases in a minute or two; `rsync` → file copy in progress; `backupd` → Time Machine backup; `Finder` → Finder has this disk or its files open; `photoanalysisd` → Photos analyzing. Anything else: `process <name> (PID <n>)`.
+
+**Spotlight hint.** When the holder is `mds_stores` (`EjectMessages.lowRiskForceHolders`), the refusal panel adds a line saying Force Eject is safe here (Spotlight only writes its own index on the disk), and the force warning says so instead of the generic data-loss text. Every other holder, known or not, keeps the generic warning.
+
+**Timing.** A busy volume takes about 11 s to refuse (measured), so the row shows an "Ejecting…" spinner for that long.
+
+- **ADR-CANDIDATE: Eject via DiskArbitration `DADiskUnmount`, naming the holder through the dissenter's process ID (resolved at runtime, no `lsof`/sudo).** Promoted to ADR: `ADR/007-diskarbitration-eject-with-holder.md` (Accepted). Rationale and alternatives: `docs/prd.md`.

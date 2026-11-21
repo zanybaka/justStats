@@ -1,3 +1,4 @@
+import AppKit
 import Combine
 import Foundation
 
@@ -55,6 +56,38 @@ final class VolumeListViewModel: ObservableObject {
             guard case .loaded(let volume) = self else { return 0 }
             return volume.usedFraction
         }
+
+        /// Whether the row offers the Eject button (VOL-008): external and network
+        /// volumes only — never the boot volume (even when it classifies as external,
+        /// e.g. macOS booted from an external SSD), never internal fixed disks, and
+        /// never a `.pending` row whose kind is still being resolved. An `.unavailable`
+        /// row is always a deferred external/network mount (often a hung share —
+        /// exactly the one worth unmounting).
+        var isEjectable: Bool {
+            switch self {
+            case .loaded(let volume):
+                return volume.kind != .internal && !VolumeListViewModel.isBootVolume(volume)
+            case .unavailable(let volume):
+                return volume.mountURL.path != "/"
+            case .pending:
+                return false
+            }
+        }
+    }
+
+    /// Per-volume eject state (VOL-008), keyed by mount URL. No entry = idle.
+    /// - `.ejecting` — an unmount is in flight (a busy volume can take ~10 s to refuse).
+    /// - `.refused` — the system refused; the refusal's message already names the volume
+    ///   and the holder. The inline panel offers Retry and Force Eject.
+    /// - `.confirmingForce` — the user chose Force Eject; the panel shows the
+    ///   data-loss warning and waits for the second tap (same two-step pattern as the
+    ///   Move-to-Trash confirm).
+    /// - `.failed` — a non-busy failure; Retry only.
+    enum EjectState: Equatable {
+        case ejecting
+        case refused(EjectRefusal)
+        case confirmingForce(EjectRefusal)
+        case failed(message: String)
     }
 
     /// Per-volume category-breakdown state (SCAN-004). One entry per loaded volume,
@@ -91,6 +124,11 @@ final class VolumeListViewModel: ObservableObject {
     /// entry has not started scanning (or its row isn't `.loaded`); the view falls
     /// back to the plain usage bar. Rebuilt from empty on every `load()`/`refresh()`.
     @Published private(set) var categoryStates: [URL: CategoryState] = [:]
+
+    /// Eject state per volume mount URL (VOL-008). Survives `refresh()` for rows that
+    /// still exist, so an in-flight unmount keeps its spinner; entries for vanished
+    /// rows are dropped.
+    @Published private(set) var ejectStates: [URL: EjectState] = [:]
 
     /// The largest-files section's state (ACT-001, PRD FR7). The section sits below
     /// the volume rows, scoped to one volume (`largestFilesVolumeURL`):
@@ -223,6 +261,14 @@ final class VolumeListViewModel: ObservableObject {
     /// set is applied on every scan/cache delivery before publishing, so a hidden row stays
     /// hidden across popover opens and app launches.
     private let hiddenFilesStore: HiddenFilesStoring
+    /// Unmounts a volume (VOL-008, ADR-007). Behind the `VolumeEjecting` seam so the
+    /// refuse → retry → force flow is unit-tested without a real mount.
+    private let ejector: VolumeEjecting
+    /// Where `NSWorkspace.didUnmountNotification` arrives (VOL-008). Defaults to the
+    /// workspace's own center; tests inject a private one and post into it.
+    private let unmountNotificationCenter: NotificationCenter
+    /// Observer token for the unmount notification while the popover is open.
+    private var unmountObserver: NSObjectProtocol?
     /// Bumped on every `load()`. A scan result carrying an older generation is a
     /// stale delivery from a superseded pass (the single shared scanner only tracks
     /// its latest scan, but reconciliation happens here on delivery, so the view
@@ -246,6 +292,8 @@ final class VolumeListViewModel: ObservableObject {
         largestFilesScanner: LargestFilesScanning = SpotlightLargestFilesScanner(),
         fileTrasher: FileTrashing = FileManagerFileTrasher(),
         hiddenFilesStore: HiddenFilesStoring = HiddenFilesStore(),
+        ejector: VolumeEjecting = DiskArbitrationVolumeEjector(),
+        unmountNotificationCenter: NotificationCenter = NSWorkspace.shared.notificationCenter,
         cache: ScanResultCache? = nil
     ) {
         self.enumerate = enumerate
@@ -254,6 +302,8 @@ final class VolumeListViewModel: ObservableObject {
         self.largestFilesScanner = largestFilesScanner
         self.fileTrasher = fileTrasher
         self.hiddenFilesStore = hiddenFilesStore
+        self.ejector = ejector
+        self.unmountNotificationCenter = unmountNotificationCenter
         self.cache = cache
     }
 
@@ -311,6 +361,11 @@ final class VolumeListViewModel: ObservableObject {
         rows = snapshot.internalVolumes.map(Row.loaded)
             + snapshot.deferredVolumes.map(Row.pending)
         categoryStates = [:]
+        // Keep eject state only for rows that still exist (an in-flight unmount survives
+        // Refresh; a vanished volume's panel is dropped).
+        let liveIDs = Set(rows.map(\.id))
+        ejectStates = ejectStates.filter { liveIDs.contains($0.key) }
+        startObservingUnmounts()
         scanNextPending()
         startLargestFilesScanIfNeeded()
         guard !snapshot.deferredVolumes.isEmpty else { return }
@@ -338,6 +393,7 @@ final class VolumeListViewModel: ObservableObject {
         resolver.invalidate()
         scanner.cancel()
         largestFilesScanner.cancel()
+        stopObservingUnmounts()
     }
 
     /// Replaces the streamed volume's placeholder row in place. A resolution
@@ -773,5 +829,128 @@ final class VolumeListViewModel: ObservableObject {
         let reason = (error as NSError).localizedFailureReason
         if let reason, !reason.isEmpty { return "Couldn't move to Trash: \(reason)" }
         return "Couldn't move to Trash"
+    }
+
+    // MARK: - Eject (VOL-008)
+
+    /// Starts a plain (non-forced) unmount of the volume at `url`. Ignored for rows that
+    /// offer no Eject button and while an unmount is already in flight. Used by the
+    /// button and by Retry.
+    func requestEject(for url: URL) {
+        startEject(for: url, force: false)
+    }
+
+    /// First tap of Force Eject: shows the data-loss warning, issues nothing yet. Only
+    /// from the `.refused` panel; anything else is ignored.
+    func requestForceEject(for url: URL) {
+        guard case .refused(let refusal) = ejectStates[url] else { return }
+        ejectStates[url] = .confirmingForce(refusal)
+    }
+
+    /// Second tap, after the warning: re-issues the unmount with the force option.
+    func confirmForceEject(for url: URL) {
+        guard case .confirmingForce = ejectStates[url] else { return }
+        startEject(for: url, force: true)
+    }
+
+    /// Backs out of the force warning to the refusal panel, or closes a refusal/failure
+    /// panel. Never cancels an unmount that is already in flight.
+    func cancelEject(for url: URL) {
+        switch ejectStates[url] {
+        case .confirmingForce(let refusal): ejectStates[url] = .refused(refusal)
+        case .refused, .failed: ejectStates[url] = nil
+        case .ejecting, nil: break
+        }
+    }
+
+    private func startEject(for url: URL, force: Bool) {
+        guard let row = rows.first(where: { $0.id == url }), row.isEjectable else { return }
+        if case .ejecting = ejectStates[url] { return }
+        ejectStates[url] = .ejecting
+        let name = Self.displayName(of: row)
+        ejector.eject(volumeAt: url, force: force) { [weak self] result in
+            self?.applyEjectResult(result, volumeName: name, for: url)
+        }
+    }
+
+    /// Applies an unmount outcome. A late completion for a state that is no longer
+    /// `.ejecting` (row gone, state reset) is dropped.
+    private func applyEjectResult(_ result: EjectResult, volumeName: String, for url: URL) {
+        guard case .ejecting = ejectStates[url] else { return }
+        switch result {
+        case .success:
+            // The unmount notification normally removes the row first; removing here too
+            // is idempotent and covers mounts that post no notification.
+            removeVolume(at: url)
+        case .refused(let holder):
+            ejectStates[url] = .refused(
+                EjectMessages.refusalDetails(volumeName: volumeName, holder: holder)
+            )
+        case .failed(let reason):
+            ejectStates[url] = .failed(
+                message: EjectMessages.failure(volumeName: volumeName, reason: reason)
+            )
+        }
+    }
+
+    private static func displayName(of row: Row) -> String {
+        switch row {
+        case .loaded(let volume): return volume.name
+        case .pending(let volume), .unavailable(let volume): return volume.name
+        }
+    }
+
+    // MARK: - Unmount observation (VOL-008)
+
+    /// Subscribes to `NSWorkspace.didUnmountNotification` while the popover is open, so
+    /// a volume leaves the list when it unmounts — by our Eject, by Finder, or by pulling
+    /// the cable — without reopening the popover. Idempotent across `load()`/`refresh()`.
+    private func startObservingUnmounts() {
+        guard unmountObserver == nil else { return }
+        unmountObserver = unmountNotificationCenter.addObserver(
+            forName: NSWorkspace.didUnmountNotification, object: nil, queue: nil
+        ) { [weak self] notification in
+            guard let url = notification.userInfo?[NSWorkspace.volumeURLUserInfoKey] as? URL else { return }
+            // Posted on the main thread in production; hop only if a caller does not.
+            if Thread.isMainThread {
+                MainActor.assumeIsolated { self?.removeVolume(at: url) }
+            } else {
+                DispatchQueue.main.async { self?.removeVolume(at: url) }
+            }
+        }
+    }
+
+    private func stopObservingUnmounts() {
+        guard let token = unmountObserver else { return }
+        unmountNotificationCenter.removeObserver(token)
+        unmountObserver = nil
+    }
+
+    /// Drops the row for an unmounted volume together with everything keyed to it: its
+    /// category state and eject panel, an in-flight category scan (the queue then moves
+    /// on), and the largest-files scope if it pointed here (the section re-scopes).
+    private func removeVolume(at url: URL) {
+        let path = url.standardizedFileURL.path
+        guard rows.contains(where: { $0.id.standardizedFileURL.path == path }) else { return }
+        let removedIDs = rows.map(\.id).filter { $0.standardizedFileURL.path == path }
+        rows.removeAll { $0.id.standardizedFileURL.path == path }
+        for id in removedIDs {
+            categoryStates[id] = nil
+            ejectStates[id] = nil
+        }
+        if let scanning = scanningURL, removedIDs.contains(scanning) {
+            scanGeneration &+= 1
+            scanner.cancel()
+            scanningURL = nil
+            scanNextPending()
+        }
+        if let scoped = largestFilesVolumeURL, removedIDs.contains(scoped) {
+            largestFilesGeneration &+= 1
+            largestFilesScanner.cancel()
+            largestFilesState = .idle
+            rawLargestFiles = []
+            largestFilesVolumeURL = nil
+            startLargestFilesScanIfNeeded()
+        }
     }
 }

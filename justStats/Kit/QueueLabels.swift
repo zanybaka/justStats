@@ -20,6 +20,10 @@ enum QueueLabels {
     /// `SpotlightCategoryScanner`'s generation/active-query state.
     static let categoryScanState = "\(prefix).category-scan-state"
 
+    /// Popover tier (TECHSPEC §13, VOL-008): the queue DiskArbitration delivers the
+    /// unmount/eject completion callbacks on, so a slow refusal never blocks main.
+    static let volumeEject = "\(prefix).volume-eject"
+
     /// Popover tier (TECHSPEC §4): the dedicated background thread that owns the
     /// run loop `NSMetadataQuery` posts its gathering notifications on — Spotlight
     /// queries never run on the main thread (NFR4).

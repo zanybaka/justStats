@@ -304,6 +304,36 @@ Pass / Fail: [ ] (see QA-001 sign-off)
 
 ---
 
+## 10. Eject a volume — holder named on refusal (VOL-008)
+
+**PRD FR17, TECHSPEC §13.** Needs a real external drive (a flash stick is best).
+
+Steps:
+1. Attach an external drive with a writable volume. Open the popover and hover its
+   row: an eject glyph appears at the right of the name line. Hover the boot
+   volume's row (and any internal disk): **no** eject glyph.
+2. Make the drive busy: in Terminal run `cd /Volumes/<name>` and leave that shell
+   there (or let Spotlight index a freshly attached drive).
+3. Press Eject. The row shows "Ejecting…" (a refusal can take about 11 s).
+4. Close the busy shell's directory hold or note the panel first.
+
+Expected:
+- A refusal shows an inline panel under the row: "Can’t eject “<name>”: …" with the
+  holder in plain words — `Spotlight indexing, usually releases in a minute or two`
+  for `mds_stores`, `Finder has this disk or its files open` for Finder, or
+  `process <name> (PID <n>)` for anything else (the shell above shows as `zsh`).
+- **Retry** while still held shows the same panel again; after releasing the hold
+  (`cd ~` in that shell), **Retry** ejects and the row disappears without reopening
+  the popover.
+- **Force Eject…** first shows a data-loss warning; only the second tap ("Force
+  Eject") unmounts. **Cancel** returns to the refusal panel.
+- On a stick with several volumes, a successful eject removes all of its rows.
+- A clean eject (nothing holding it) removes the row immediately.
+
+Pass / Fail: [ ]
+
+---
+
 ## Run log
 
 ### 2026-07-05 — justStats 0.3.4, macOS 15.7.5, Apple Silicon (REL-003)
