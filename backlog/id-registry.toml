@@ -7,7 +7,7 @@
 # Never allocate a new task id with a suffix <= max_seen for its prefix.
 
 generated = "2026-11-21"
-reason = "SCAN-009 existed with stale floor (neighbor session add); rescan after VOL-007 merge"
+reason = "new task VOL-008 (backlog-store add)"
 sources = ["BACKLOG.md", "backlog/tasks/ (filenames)"]
 
 [prefixes.ACT]
@@ -95,7 +95,7 @@ next_free = "UX-020"
 next_free_num = 20
 
 [prefixes.VOL]
-max_seen = "VOL-007"
-max_seen_num = 7
-next_free = "VOL-008"
-next_free_num = 8
+max_seen = "VOL-008"
+max_seen_num = 8
+next_free = "VOL-009"
+next_free_num = 9
