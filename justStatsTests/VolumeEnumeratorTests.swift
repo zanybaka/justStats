@@ -172,6 +172,63 @@ final class VolumeEnumeratorTests: XCTestCase {
         XCTAssertEqual(snapshot.deferredVolumes.map(\.name), ["Recovery"])
     }
 
+    func testReadOnlyVolumesAreFilteredFromBothPaths() {
+        // A mounted .dmg image and a write-protected card (VOL-007): their free
+        // space can never change and no file action applies, so they must not
+        // render — even when the flags would classify the card as internal.
+        let provider = MockVolumeInfoProvider()
+        provider.volumes = [
+            bootVolumeInfo(),
+            VolumeInfo(
+                mountURL: url("/Volumes/Installer"), name: "Installer",
+                isInternal: false, isLocal: true, isRemovable: true, isEjectable: true,
+                isReadOnly: true
+            ),
+            VolumeInfo(
+                mountURL: url("/Volumes/LockedCard"), name: "LockedCard",
+                isInternal: true, isLocal: true, isRemovable: true, isEjectable: false,
+                isReadOnly: true
+            ),
+        ]
+        provider.capacities = [url("/"): VolumeSpace(free: 1, total: 2)]
+
+        let snapshot = VolumeEnumerator(provider: provider).enumerateSynchronously()
+
+        XCTAssertEqual(snapshot.internalVolumes.map(\.mountURL.path), ["/"])
+        XCTAssertTrue(snapshot.deferredVolumes.isEmpty)
+    }
+
+    func testUnknownReadOnlyFlagFailsOpenAndKeepsTheVolume() {
+        // isReadOnly == nil means the filesystem did not report it; a volume is
+        // hidden only when read-only-ness is proven.
+        let provider = MockVolumeInfoProvider()
+        provider.volumes = [VolumeInfo(
+            mountURL: url("/Volumes/Mystery"), name: "Mystery",
+            isInternal: false, isLocal: true, isRemovable: true, isEjectable: true
+        )]
+
+        let snapshot = VolumeEnumerator(provider: provider).enumerateSynchronously()
+
+        XCTAssertEqual(snapshot.deferredVolumes.map(\.name), ["Mystery"])
+    }
+
+    func testReadWriteDiskImageStaysVisibleAsExternal() {
+        // Regression guard for sparsebundle backups: the criterion is
+        // read-only-ness, not image-ness, so a writable image still renders.
+        let provider = MockVolumeInfoProvider()
+        provider.volumes = [VolumeInfo(
+            mountURL: url("/Volumes/Backup"), name: "Backup",
+            isInternal: false, isLocal: true, isRemovable: true, isEjectable: true,
+            isReadOnly: false
+        )]
+
+        let snapshot = VolumeEnumerator(provider: provider).enumerateSynchronously()
+
+        XCTAssertEqual(snapshot.deferredVolumes, [
+            DeferredVolume(name: "Backup", mountURL: url("/Volumes/Backup"), kind: .external),
+        ])
+    }
+
     func testMissingNameFallsBackToMountPathComponent() {
         let provider = MockVolumeInfoProvider()
         provider.volumes = [VolumeInfo(
@@ -245,6 +302,22 @@ final class VolumeEnumeratorTests: XCTestCase {
         XCTAssertFalse(allPaths.isEmpty, "at least the boot volume must be present")
         XCTAssertFalse(allPaths.contains { $0.hasPrefix("/System/Volumes") },
                        "APFS service volumes must be filtered out")
+    }
+
+    func testRealEnumeratorFiltersReadOnlyMounts() {
+        // Live check against the real provider — with a mounted .dmg present,
+        // every volume the filesystem reports as read-only must be absent.
+        let readOnlyPaths = FileManagerVolumeInfoProvider().mountedVolumes()
+            .filter { $0.isReadOnly == true }
+            .map(\.mountURL.path)
+        let snapshot = VolumeEnumerator().enumerateSynchronously()
+        let shown = snapshot.internalVolumes.map(\.mountURL.path)
+            + snapshot.deferredVolumes.map(\.mountURL.path)
+
+        for path in readOnlyPaths {
+            XCTAssertFalse(shown.contains(path),
+                           "read-only mount \(path) must not be user-facing")
+        }
     }
 
     func testRealProviderReturnsBSDNameForBootVolume() {
