@@ -104,7 +104,7 @@ User feedback: the current UI is plain (flat 8px segmented bar + system Progress
 
 Running 0.3.0 surfaced a real correctness bug (sizes) plus an icon regression. Build the .zip after these land (build-on-every-change).
 
-- [ ] [DOC-001](backlog/tasks/DOC-001.md) README: real screenshots + concise description; move dev detail to README.Dev.md
+- [x] [DOC-001](backlog/tasks/DOC-001.md) README: real screenshots + concise description; move dev detail to README.Dev.md
 - [x] [UX-010](backlog/tasks/UX-010.md) Largest files: rank and show ON-DISK (allocated) size, not logical
 - [x] [UX-011](backlog/tasks/UX-011.md) Category breakdown: sum ON-DISK (allocated) size, not logical
 - [x] [UX-012](backlog/tasks/UX-012.md) Restore the GitHub brand mark on the repo link
@@ -134,7 +134,8 @@ screenshots. Both should be real before the repo goes public / v1.0.0 is announc
 
 ## Phase 15 — Bug fixes (2026-07-12, from crash-report analysis)
 
-- [ ] [SCAN-008](backlog/tasks/SCAN-008.md) Fix deinit deadlock in SpotlightLargestFilesScanner (dispatch_sync on own stateQueue)
+- [x] [SCAN-008](backlog/tasks/SCAN-008.md) Fix deinit deadlock in SpotlightLargestFilesScanner (dispatch_sync on own stateQueue)
+- [ ] [SCAN-009](backlog/tasks/SCAN-009.md) Same deinit trap in SpotlightCategoryScanner (found while fixing SCAN-008)
 
 ## Phase 16 — Reclaimable space cleanup (2026-10-11, from manual cleanup session)
 
