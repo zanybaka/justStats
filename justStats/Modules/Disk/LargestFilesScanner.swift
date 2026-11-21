@@ -1,4 +1,5 @@
 import Foundation
+import os
 
 /// One entry in a volume's "largest files" list (SCAN-003, PRD FR7): a single file
 /// with its display name, on-disk size, and location. The `url` is what later tiers
@@ -380,7 +381,9 @@ final class SpotlightLargestFilesScanner: LargestFilesScanning {
         let progressObserver: NSObjectProtocol
     }
 
-    /// State for one generation, confined to `stateQueue`. A single generation can run
+    /// State for one generation. Reached through the lock-protected `state.current`
+    /// slot; once a stateQueue block holds a `Scan`, its mutable fields belong to that
+    /// thread alone (`deinit` aside — see `state`). A single generation can run
     /// several queries in sequence — one per cascade floor (A1) — but only ever one at a
     /// time (`active`); `floorIndex` tracks how far down the floors it has descended.
     private final class Scan {
@@ -458,8 +461,30 @@ final class SpotlightLargestFilesScanner: LargestFilesScanning {
     /// still identifiable in Instruments/crash logs (TECHSPEC §1).
     private static let stateQueueLabel = "com.zanybaka.justStats.largest-files-scan-state"
 
-    /// Serializes generation bookkeeping and the active-scan slot.
+    /// Orders scanner operations: `scan`/`cancel` supersession and the cascade
+    /// follow-ups hop here so they run first-in-first-out, and the per-scan Trash
+    /// resolution stays off the caller's (main) thread. ORDERING ONLY — the mutable
+    /// state this queue used to guard lives in `state` behind an unfair lock instead,
+    /// because a serial queue cannot be touched from `deinit` (SCAN-008).
     private let stateQueue = DispatchQueue(label: SpotlightLargestFilesScanner.stateQueueLabel)
+
+    /// Scanner state — the active-scan slot and the refresh generation — behind an
+    /// unfair lock rather than stateQueue confinement so ANY thread can read or drain
+    /// it. That includes `deinit`, which runs on the stateQueue thread when an
+    /// in-flight block held the last strong reference; the old `stateQueue.sync`
+    /// teardown from there dispatched onto the queue owned by the current thread and
+    /// trapped (SCAN-008). A `Scan`'s own mutable fields (`active`, `floorIndex`,
+    /// `lastPartialSignature`) stay confined to stateQueue blocks; `deinit` may touch
+    /// them too, which is safe because once it has drained `current` under the lock no
+    /// stateQueue block can still reach that `Scan` (blocks re-read `current` first).
+    private let state = OSAllocatedUnfairLock(initialState: ScannerState())
+
+    /// The lock-protected scanner state (see `state`).
+    private struct ScannerState {
+        /// Refresh token: notifications tagged with an older generation are ignored.
+        var generation: UInt64 = 0
+        var current: Scan?
+    }
     /// The background run loop `NSMetadataQuery` notifications are delivered on.
     private let runLoopThread: MetadataQueryRunLoopExecuting
     private let deliverQueue: DispatchQueue
@@ -476,9 +501,6 @@ final class SpotlightLargestFilesScanner: LargestFilesScanning {
     /// (UX-010). Injectable behind `OnDiskSizing` so tests supply canned sizes without
     /// touching the real filesystem; the default reads `.totalFileAllocatedSizeKey`.
     private let onDiskSizing: OnDiskSizing
-    /// Refresh token: notifications tagged with an older generation are ignored.
-    private var generation: UInt64 = 0
-    private var current: Scan?
 
     /// - Parameters:
     ///   - runLoopThread: the executor owning the query run loop; the default starts a
@@ -511,10 +533,13 @@ final class SpotlightLargestFilesScanner: LargestFilesScanning {
     }
 
     deinit {
-        // Tear down synchronously on dealloc so no query outlives the scanner.
-        let scan = stateQueue.sync { () -> Scan? in
-            let scan = current
-            current = nil
+        // Tear down synchronously on dealloc so no query outlives the scanner. The
+        // unfair lock is takeable from any thread — including the stateQueue thread
+        // an in-flight block may be running deinit on, where the old `stateQueue.sync`
+        // dispatched onto the queue owned by the current thread and trapped (SCAN-008).
+        let scan = state.withLock { state -> Scan? in
+            let scan = state.current
+            state.current = nil
             return scan
         }
         if let scan { tearDown(scan) }
@@ -531,17 +556,19 @@ final class SpotlightLargestFilesScanner: LargestFilesScanning {
     ) {
         stateQueue.async { [weak self] in
             guard let self else { return }
-            if let previous = self.current {
-                self.tearDown(previous)
-                self.current = nil
+            let (previous, generation) = self.state.withLock { state -> (Scan?, UInt64) in
+                let previous = state.current
+                state.current = nil
+                state.generation &+= 1
+                return (previous, state.generation)
             }
-            self.generation &+= 1
+            if let previous { self.tearDown(previous) }
             // Resolve the volume's real Trash directory ONCE per scan, off-main here on the
             // state queue — the single filesystem touch for Trash detection (UX-018). The pure
             // per-candidate containment check reuses this without hitting disk again.
             let trashURL = TrashFilter.resolveTrashURL(for: volumeURL)
             let scan = Scan(
-                generation: self.generation,
+                generation: generation,
                 volumeURL: volumeURL,
                 limit: limit,
                 floors: self.floors,
@@ -549,7 +576,7 @@ final class SpotlightLargestFilesScanner: LargestFilesScanning {
                 deliverPartial: onPartial,
                 deliver: onResult
             )
-            self.current = scan
+            self.state.withLock { $0.current = scan }
             self.startQuery(for: scan)
         }
     }
@@ -557,11 +584,13 @@ final class SpotlightLargestFilesScanner: LargestFilesScanning {
     func cancel() {
         stateQueue.async { [weak self] in
             guard let self else { return }
-            self.generation &+= 1 // any in-flight notification is now stale
-            if let scan = self.current {
-                self.tearDown(scan)
-                self.current = nil
+            let scan = self.state.withLock { state -> Scan? in
+                state.generation &+= 1 // any in-flight notification is now stale
+                let scan = state.current
+                state.current = nil
+                return scan
             }
+            if let scan { self.tearDown(scan) }
         }
     }
 
@@ -635,8 +664,8 @@ final class SpotlightLargestFilesScanner: LargestFilesScanning {
         dispatchPrecondition(condition: .notOnQueue(.main))
         // Only do the read if this is still the live generation. Pull the resolved Trash URL
         // alongside `limit` so the extraction filters candidates against it (UX-018).
-        let params = stateQueue.sync { () -> (limit: Int, trashURL: URL?)? in
-            guard let scan = current, scan.generation == generation else { return nil }
+        let params = state.withLock { state -> (limit: Int, trashURL: URL?)? in
+            guard let scan = state.current, scan.generation == generation else { return nil }
             return (scan.limit, scan.trashURL)
         }
         guard let params else { return }
@@ -646,7 +675,8 @@ final class SpotlightLargestFilesScanner: LargestFilesScanning {
         guard !files.isEmpty else { return }
         let signature = PartialSignature(count: files.count, totalBytes: files.reduce(0) { $0 &+ $1.sizeBytes })
         stateQueue.async { [weak self] in
-            guard let self, let scan = self.current, scan.generation == generation else { return }
+            guard let self else { return }
+            guard let scan = self.state.withLock({ $0.current }), scan.generation == generation else { return }
             // Only forward a partial that strictly improves the visible top-N. This
             // coalesces no-change ticks AND suppresses the transient shrink a fresh lower-
             // floor query produces mid-cascade (its early ticks are a subset of the prior
@@ -656,7 +686,7 @@ final class SpotlightLargestFilesScanner: LargestFilesScanning {
             let deliverPartial = scan.deliverPartial
             self.deliverQueue.async { [weak self] in
                 guard let self else { return }
-                guard self.stateQueue.sync(execute: { self.generation == generation }) else { return }
+                guard self.state.withLock({ $0.generation == generation }) else { return }
                 deliverPartial(files)
             }
         }
@@ -671,8 +701,8 @@ final class SpotlightLargestFilesScanner: LargestFilesScanning {
         dispatchPrecondition(condition: .notOnQueue(.main))
         query.disableUpdates()
         // Pull the resolved Trash URL alongside `limit` so extraction can filter Trash (UX-018).
-        let params = stateQueue.sync { () -> (limit: Int, trashURL: URL?)? in
-            guard let scan = current, scan.generation == generation else { return nil }
+        let params = state.withLock { state -> (limit: Int, trashURL: URL?)? in
+            guard let scan = state.current, scan.generation == generation else { return nil }
             return (scan.limit, scan.trashURL)
         }
         // If the generation is already stale, skip the extraction work entirely.
@@ -681,7 +711,8 @@ final class SpotlightLargestFilesScanner: LargestFilesScanning {
             from: query, limit: params.limit, trashURL: params.trashURL)
         query.stop()
         stateQueue.async { [weak self] in
-            guard let self, let scan = self.current, scan.generation == generation else { return }
+            guard let self else { return }
+            guard let scan = self.state.withLock({ $0.current }), scan.generation == generation else { return }
             self.advanceCascade(scan, files: files, matchedCount: matchedCount, trashSkipped: trashSkipped)
         }
     }
@@ -763,19 +794,23 @@ final class SpotlightLargestFilesScanner: LargestFilesScanning {
             limit: scan.limit
         )
         tearDown(scan)
-        if current?.generation == scan.generation { current = nil }
+        state.withLock { state in
+            if state.current?.generation == scan.generation { state.current = nil }
+        }
         let generation = scan.generation
         let deliver = scan.deliver
         deliverQueue.async { [weak self] in
             guard let self else { return }
-            guard self.stateQueue.sync(execute: { self.generation == generation }) else { return }
+            guard self.state.withLock({ $0.generation == generation }) else { return }
             deliver(result)
         }
     }
 
     /// Stops the live query, removes its observer, and drops the query object —
-    /// nothing keeps gathering or leaks after this (SCAN-007). Runs on `stateQueue`;
-    /// the `stop()` hops to the run-loop thread the query lives on.
+    /// nothing keeps gathering or leaks after this (SCAN-007). Runs on `stateQueue`,
+    /// or from `deinit` (safe from any thread: after the deinit drained `current`
+    /// under the lock, nothing else can reach the `Scan`); the `stop()` hops to the
+    /// run-loop thread the query lives on.
     private func tearDown(_ scan: Scan) {
         guard let active = scan.active else { return }
         scan.active = nil

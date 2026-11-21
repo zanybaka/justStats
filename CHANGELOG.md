@@ -5,6 +5,19 @@ All notable changes to justStats are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Fixed
+
+- Fixed a crash in the largest-files scanner (SCAN-008): closing the largest-files
+  view while a scan was in flight could run the scanner's teardown on its own state
+  queue, and libdispatch aborted the app ("dispatch_sync called on queue already
+  owned by current thread" — 10 crash reports on 2026-07-05). The scanner's state
+  now lives behind an unfair lock (`OSAllocatedUnfairLock`) instead of queue
+  confinement, so teardown is safe from any thread; ordering between scan/cancel
+  operations is unchanged. Covered by a regression test that reproduces the exact
+  release path.
+
 ## [1.0.0] - 2026-07-05
 
 First public release — a native macOS menu bar disk monitor.

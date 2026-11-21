@@ -803,4 +803,63 @@ final class LargestFilesScannerTests: XCTestCase {
                       "an all-Trash but indexed volume is available (empty list), not degraded")
         XCTAssertTrue(result.files.isEmpty)
     }
+
+    // MARK: - deinit safety (SCAN-008)
+
+    /// Run-loop stub that records whether `stop()` ran, so a test can observe that the
+    /// scanner's `deinit` completed (it stops the run loop last). `perform` stays
+    /// off-main to keep the scanner's `.notOnQueue(.main)` preconditions honest.
+    private final class StopRecordingRunLoop: MetadataQueryRunLoopExecuting, @unchecked Sendable {
+        private let queue = DispatchQueue(label: "test.scan008-runloop", qos: .userInitiated)
+        private let lock = NSLock()
+        private var stopped = false
+        var didStop: Bool { lock.withLock { stopped } }
+        func perform(_ block: @escaping () -> Void) { queue.async(execute: block) }
+        func stop() { lock.withLock { stopped = true } }
+    }
+
+    /// Regression (SCAN-008): a `stateQueue.async` block takes a temporary strong
+    /// reference (`guard let self`). If the owner releases the scanner while such a
+    /// block is executing, the block's reference is the last one, so `deinit` runs ON
+    /// the stateQueue thread when the block ends — and a `deinit` that tears down via
+    /// `stateQueue.sync` dispatches onto the queue owned by the current thread and
+    /// traps (10 identical crashes on 2026-07-05). This test drives exactly that
+    /// release path: it pauses the scan block inside `makeQuery` (called from
+    /// `startQuery` inside the block), drops the test's own reference, then lets the
+    /// block finish so its end-of-block release is the final one.
+    func testDeinitRunningInsideStateQueueBlockDoesNotTrap() {
+        let runLoop = StopRecordingRunLoop()
+        let insideMakeQuery = DispatchSemaphore(value: 0)
+        let letBlockFinish = DispatchSemaphore(value: 0)
+        var scanner: SpotlightLargestFilesScanner? = SpotlightLargestFilesScanner(
+            runLoopThread: runLoop,
+            deliverQueue: DispatchQueue(label: "test.scan008-deliver"),
+            makeQuery: {
+                // Executed inside the scanner's stateQueue block; hold it here so the
+                // test can drop every OTHER strong reference first.
+                insideMakeQuery.signal()
+                letBlockFinish.wait()
+                return FakeMetadataQuery(items: [])
+            },
+            floors: [0]
+        )
+        weak var weakScanner = scanner
+        scanner?.scan(volumeURL: volumeURL("/"), limit: 3, onPartial: { _ in }, onResult: { _ in })
+        XCTAssertEqual(insideMakeQuery.wait(timeout: .now() + 5), .success,
+                       "makeQuery must run inside the stateQueue block")
+        // With the block still executing, the test drops its own reference. The block's
+        // `self` is now the last strong reference, so the block's end runs deinit on the
+        // stateQueue thread — the exact path that used to trap.
+        scanner = nil
+        letBlockFinish.signal()
+
+        // deinit ends by stopping the run loop; wait briefly for it and for the weak
+        // reference to clear, proving the scanner fully deallocated on that path.
+        let deadline = Date().addingTimeInterval(5)
+        while !(runLoop.didStop && weakScanner == nil) && Date() < deadline {
+            usleep(10_000)
+        }
+        XCTAssertTrue(runLoop.didStop, "deinit must complete (it stops the run loop)")
+        XCTAssertNil(weakScanner, "the scanner must fully deallocate")
+    }
 }
