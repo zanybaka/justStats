@@ -7,7 +7,7 @@
 # Never allocate a new task id with a suffix <= max_seen for its prefix.
 
 generated = "2026-11-21"
-reason = "new task VOL-008 (backlog-store add)"
+reason = "new task NET-005 (backlog-store add)"
 sources = ["BACKLOG.md", "backlog/tasks/ (filenames)"]
 
 [prefixes.ACT]
@@ -57,6 +57,12 @@ max_seen = "INIT-003"
 max_seen_num = 3
 next_free = "INIT-004"
 next_free_num = 4
+
+[prefixes.NET]
+max_seen = "NET-005"
+max_seen_num = 5
+next_free = "NET-006"
+next_free_num = 6
 
 [prefixes.QA]
 max_seen = "QA-004"

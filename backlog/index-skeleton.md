@@ -58,3 +58,12 @@ Deferred 2026-11-21: cleanup moves to the separate macos-cleanup app; justStats 
 Running the app next to a mounted .dmg showed that read-only mounts render as volume
 rows whose numbers can never change. Such rows are noise for a stats panel, so the
 volume list learns to hide volumes that provably cannot change.
+
+## Phase 18 — Network monitoring (2026-11-21, approved mockup)
+
+First module after Disk, planned against the Stats (exelban) Net module read from source
+(2026-11-21). Owner decisions fixed before tasks: no menu bar item (the section lives in
+the existing disk popover), a minimal collapsed card with lazy expansion (interfaces,
+connection, top processes), no public IP, and no network work at all while the popover is
+closed — the ADR-002 two-tier shape with the sampler as its only live tier. Tasks run
+sequentially (NET-001 → 005); each is independently testable.

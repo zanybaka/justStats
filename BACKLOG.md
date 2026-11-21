@@ -157,3 +157,18 @@ volume list learns to hide volumes that provably cannot change.
 
 - [x] [VOL-007](backlog/tasks/VOL-007.md) Hide read-only volumes (mounted .dmg images, write-protected cards) from the volume list
 - [x] [VOL-008](backlog/tasks/VOL-008.md) Eject button per volume: on refusal, name the holder in human language (DiskArbitration dissenter)
+
+## Phase 18 — Network monitoring (2026-11-21, approved mockup)
+
+First module after Disk, planned against the Stats (exelban) Net module read from source
+(2026-11-21). Owner decisions fixed before tasks: no menu bar item (the section lives in
+the existing disk popover), a minimal collapsed card with lazy expansion (interfaces,
+connection, top processes), no public IP, and no network work at all while the popover is
+closed — the ADR-002 two-tier shape with the sampler as its only live tier. Tasks run
+sequentially (NET-001 → 005); each is independently testable.
+
+- [ ] [NET-001](backlog/tasks/NET-001.md) Network throughput sampler: sysctl counters, deltas, ring buffer
+- [ ] [NET-002](backlog/tasks/NET-002.md) Network section UI in the disk popover: collapsed card (approved mockup)
+- [ ] [NET-003](backlog/tasks/NET-003.md) Expanded details: interfaces and connection info, lazy on expand
+- [ ] [NET-004](backlog/tasks/NET-004.md) Top processes by traffic via nettop, only while expanded and open
+- [ ] [NET-005](backlog/tasks/NET-005.md) NFR measurement for the net section + PRD/CHANGELOG sync
