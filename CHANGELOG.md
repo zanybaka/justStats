@@ -162,4 +162,5 @@ First feature-complete build: a native macOS menu bar app that monitors disk hea
   justStats alone. A side-by-side comparison with exelban/stats was **not** run
   (Stats is not installed on the build machine) and remains a manual follow-up.
 
-[1.0.0]: https://github.com/zanybaka/justStats/releases
+[1.1.0]: https://github.com/zanybaka/justStats/releases/tag/v1.1.0
+[1.0.0]: https://github.com/zanybaka/justStats/releases/tag/v1.0.0

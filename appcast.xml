@@ -14,6 +14,27 @@
     <description>Update feed for justStats, a native macOS menu bar disk monitor.</description>
     <language>en</language>
     <item>
+      <title>Version 1.1.0</title>
+      <sparkle:version>9</sparkle:version>
+      <sparkle:shortVersionString>1.1.0</sparkle:shortVersionString>
+      <sparkle:minimumSystemVersion>15.0</sparkle:minimumSystemVersion>
+      <pubDate>Sat, 21 Nov 2026 16:38:40 +0300</pubDate>
+      <description><![CDATA[
+        <ul>
+          <li>Eject external and network volumes from the popover; when macOS refuses, see who is using the disk (Spotlight, Time Machine, Finder, and more) with Retry and Force Eject.</li>
+          <li>Read-only mounts (e.g. mounted disk images) no longer clutter the volume list.</li>
+          <li>Fix crash when closing the largest-files view while a scan was in flight.</li>
+        </ul>
+      ]]></description>
+      <enclosure
+        url="https://github.com/zanybaka/justStats/releases/download/v1.1.0/justStats.zip"
+        sparkle:version="9"
+        sparkle:shortVersionString="1.1.0"
+        sparkle:edSignature="IzLDDyWfK9PMvU3yAAG9JMZgLUGDuVb6J9UbtHRNLaLBMro1bcG4zDwtIeRWij0JH+u5dr7P+fppyUUA+rv+AQ=="
+        length="2032323"
+        type="application/octet-stream" />
+    </item>
+    <item>
       <title>Version 1.0.0</title>
       <sparkle:version>8</sparkle:version>
       <sparkle:shortVersionString>1.0.0</sparkle:shortVersionString>
