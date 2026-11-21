@@ -5,6 +5,15 @@ All notable changes to justStats are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.1] - Unreleased
+
+### Changed
+
+- **Read-only mounts no longer appear in the volume list** — mounted .dmg images and
+  write-protected cards are filtered out: their free space can never change, so a stats
+  row was noise. A volume is hidden only when the filesystem explicitly reports it
+  read-only; read-write disk images such as sparsebundle backups stay visible.
+
 ## [1.0.0] - 2026-07-05
 
 First public release — a native macOS menu bar disk monitor.

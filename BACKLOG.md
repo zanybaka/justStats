@@ -145,3 +145,11 @@ screenshots. Both should be real before the repo goes public / v1.0.0 is announc
 - [ ] [CLEAN-004](backlog/tasks/CLEAN-004.md) Clean action: allowlisted external commands (docker, uv, npm, brew)
 - [ ] [CLEAN-005](backlog/tasks/CLEAN-005.md) Copy AI prompt for deeper analysis (English, with preview)
 - [ ] [CLEAN-006](backlog/tasks/CLEAN-006.md) Destructive-action safety review for cleanup
+
+## Phase 17 — Volume list refinements (2026-11-21, live feedback)
+
+Running the app next to a mounted .dmg showed that read-only mounts render as volume
+rows whose numbers can never change. Such rows are noise for a stats panel, so the
+volume list learns to hide volumes that provably cannot change.
+
+- [x] [VOL-007](backlog/tasks/VOL-007.md) Hide read-only volumes (mounted .dmg images, write-protected cards) from the volume list

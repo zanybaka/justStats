@@ -6,8 +6,8 @@
 # and task-file names in backlog/tasks/ and backlog/archive/tasks/.
 # Never allocate a new task id with a suffix <= max_seen for its prefix.
 
-generated = "2026-10-11"
-reason = "new task CLEAN-006 (backlog-store add)"
+generated = "2026-11-21"
+reason = "new task VOL-007 (backlog-store add)"
 sources = ["BACKLOG.md", "backlog/tasks/ (filenames)"]
 
 [prefixes.ACT]
@@ -95,7 +95,7 @@ next_free = "UX-020"
 next_free_num = 20
 
 [prefixes.VOL]
-max_seen = "VOL-006"
-max_seen_num = 6
-next_free = "VOL-007"
-next_free_num = 7
+max_seen = "VOL-007"
+max_seen_num = 7
+next_free = "VOL-008"
+next_free_num = 8

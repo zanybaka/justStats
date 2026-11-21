@@ -50,3 +50,9 @@ screenshots. Both should be real before the repo goes public / v1.0.0 is announc
 ## Phase 15 — Bug fixes (2026-07-12, from crash-report analysis)
 
 ## Phase 16 — Reclaimable space cleanup (2026-10-11, from manual cleanup session)
+
+## Phase 17 — Volume list refinements (2026-11-21, live feedback)
+
+Running the app next to a mounted .dmg showed that read-only mounts render as volume
+rows whose numbers can never change. Such rows are noise for a stats panel, so the
+volume list learns to hide volumes that provably cannot change.
