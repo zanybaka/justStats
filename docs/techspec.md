@@ -172,9 +172,14 @@ Sourced from two places only: (a) a technical article on `NSStatusItem` that dir
 - Sparkle auto-update with a self-managed EdDSA key, no Apple notarization/Developer ID — §6. Promoted to ADR: `ADR/004-sparkle-without-notarization.md` (Accepted).
 - `SMAppService` for launch-at-login instead of reusing Stats' legacy helper-executable pattern — §5 (corrects PRD's original ADR-CANDIDATE after source inspection). Promoted to ADR: `ADR/005-smappservice-launch-at-login.md` (Accepted).
 - Mirror Stats' `Kit`/`Modules` structural pattern for the module boundary, without adopting its `DiskArbitration`-as-event-source approach (Stats itself doesn't use it that way either) — §1, §3.
-- Rule-catalog cleanup (directory delete + allowlisted commands, no heuristics, no AI) — §12. Promoted to ADR: `ADR/006-rule-catalog-cleanup.md` (Proposed).
+- Rule-catalog cleanup (directory delete + allowlisted commands, no heuristics, no AI) — §12. Promoted to ADR: `ADR/006-rule-catalog-cleanup.md` (Deferred 2026-11-21).
 
 ## 12. Reclaimable Space Cleanup (FR14–FR16)
+
+> Deferred 2026-11-21 (owner decision): cleanup moves to the separate macos-cleanup
+> app; justStats stays statistics-only. FR14–FR16 and the backlog branch ADR-004 +
+> CLEAN-001…006 are deferred with it. This section stays as the design reference the
+> cleanup app can build on.
 
 ### 12.1 Rule model
 

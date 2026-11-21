@@ -1,6 +1,6 @@
 # ADR-006: Rule-catalog cleanup actions instead of AI or heuristic suggestions
 
-Status: Proposed
+Status: Deferred 2026-11-21 — the cleanup scope moves to the separate macos-cleanup app; justStats stays statistics-only. Revisit the decision there, not here.
 Date: 2026-10-11
 Sources: `docs/prd.md` (FR14–FR16, ADR-CANDIDATE — rule-catalog cleanup); `docs/techspec.md` §12; manual disk-cleanup session on the author's Mac, 2026-10-10/11
 
