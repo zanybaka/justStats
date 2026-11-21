@@ -28,15 +28,22 @@ final class VolumeListPopoverCoordinator {
     private let onOpenSettings: () -> Void
     /// The model driving the currently presented content; nil while closed.
     private var activeModel: VolumeListViewModel?
+    /// Network tab (NET-002): builds the per-open section model; nil when not wired (most
+    /// coordinator tests), in which case the popover has no tabs. The sampler is *not*
+    /// started on open — only selecting the Network tab starts it, and close stops it.
+    private let makeNetworkSection: (() -> NetworkSectionViewModel)?
+    private var activeNetworkSection: NetworkSectionViewModel?
 
     /// Seam for tests; production uses `init()`. `onOpenSettings` defaults to a
     /// no-op so existing coordinator tests need no change.
     init(
         makeModel: @escaping () -> VolumeListViewModel,
-        onOpenSettings: @escaping () -> Void = {}
+        onOpenSettings: @escaping () -> Void = {},
+        makeNetworkSection: (() -> NetworkSectionViewModel)? = nil
     ) {
         self.makeModel = makeModel
         self.onOpenSettings = onOpenSettings
+        self.makeNetworkSection = makeNetworkSection
     }
 
     convenience init(onOpenSettings: @escaping () -> Void = {}) {
@@ -49,6 +56,9 @@ final class VolumeListPopoverCoordinator {
         // One ejector too (VOL-008): its DiskArbitration session is created lazily and
         // reused across opens.
         let ejector = DiskArbitrationVolumeEjector()
+        // One idle sampler for the app lifetime (NET-001/002): no timer exists until the
+        // popover opens, and it is stopped again on close.
+        let netSampler = NetSampler()
         self.init(
             makeModel: {
                 VolumeListViewModel(
@@ -59,7 +69,8 @@ final class VolumeListPopoverCoordinator {
                     cache: cache
                 )
             },
-            onOpenSettings: onOpenSettings
+            onOpenSettings: onOpenSettings,
+            makeNetworkSection: { NetworkSectionViewModel.makeProduction(sampler: netSampler) }
         )
     }
 
@@ -70,8 +81,10 @@ final class VolumeListPopoverCoordinator {
     func makeContentViewController() -> NSViewController {
         let model = makeModel()
         activeModel = model
+        let network = makeNetworkSection?()
+        activeNetworkSection = network
         let hosting = NSHostingController(
-            rootView: VolumeListView(model: model, openSettings: onOpenSettings)
+            rootView: VolumeListView(model: model, tabs: PopoverTabsModel(network: network), openSettings: onOpenSettings)
         )
         hosting.sizingOptions = [.preferredContentSize]
         return hosting
@@ -88,5 +101,8 @@ final class VolumeListPopoverCoordinator {
     func popoverDidClose() {
         activeModel?.invalidate()
         activeModel = nil
+        // NET-002/003/004: stop the sampler and everything behind the disclosures.
+        activeNetworkSection?.invalidate()
+        activeNetworkSection = nil
     }
 }
