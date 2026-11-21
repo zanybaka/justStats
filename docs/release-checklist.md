@@ -91,6 +91,12 @@ ditto -c -k --sequesterRsrc --keepParent justStats.app justStats-X.Y.Z.zip
 ```
 This produces `justStats-X.Y.Z.zip`.
 
+When using `scripts/package.sh`, it copies license files into the bundle after
+the build. That breaks the linker adhoc signature; the script re-signs with
+`codesign -s -` before zipping. If you zip by hand after adding resources to the
+`.app`, re-sign first or Sparkle will reject the update (EdDSA on the zip can
+still verify, but Sparkle also checks the nested `.app` code signature).
+
 ### 4. Generate the EdDSA signature
 
 Run Sparkle's `sign_update` on the zip. It signs with the private key from the

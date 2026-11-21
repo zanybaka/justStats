@@ -58,6 +58,16 @@ echo "==> Bundling license notices into the app..."
 cp "${REPO_ROOT}/LICENSE" "${APP_PATH}/Contents/Resources/LICENSE.txt"
 cp "${REPO_ROOT}/THIRD-PARTY-LICENSES.md" "${APP_PATH}/Contents/Resources/THIRD-PARTY-LICENSES.txt"
 
+# Resources added after xcodebuild invalidate the linker adhoc signature. Sparkle
+# treats adhoc as code-signed and rejects the update when the nested bundle fails
+# `codesign --verify` (SUUpdateValidator). Re-sign so EdDSA-only validation passes.
+echo "==> Re-signing (adhoc) after bundling license files..."
+codesign --force --deep -s - "${APP_PATH}"
+if ! codesign --verify --deep --strict "${APP_PATH}"; then
+  echo "ERROR: adhoc re-sign failed verification on ${APP_PATH}" >&2
+  exit 1
+fi
+
 mkdir -p "${DIST_DIR}"
 
 # Refresh BOTH artifacts so whichever the user runs is current:
