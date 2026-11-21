@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Eject button on external and network volumes, with the holder named on refusal**
+  (VOL-008, PRD FR17) — hover a volume row and press the eject glyph to unmount it (a
+  multi-volume stick ejects whole, like Finder; the row leaves the list without reopening
+  the popover). When macOS refuses, an inline panel names the volume and what is using
+  it in plain words ("Spotlight indexing, usually releases in a minute or two", "Time
+  Machine backup", or `process <name> (PID <n>)`) and offers **Retry** and **Force
+  Eject** (behind a data-loss warning). Never shown on the boot volume or internal
+  fixed disks. The holder comes from the DiskArbitration dissenter's PID — see
+  `ADR/007-diskarbitration-eject-with-holder.md`; no admin rights needed.
+
 ### Changed
 
 - **Read-only mounts no longer appear in the volume list** — mounted .dmg images and

@@ -156,4 +156,4 @@ rows whose numbers can never change. Such rows are noise for a stats panel, so t
 volume list learns to hide volumes that provably cannot change.
 
 - [x] [VOL-007](backlog/tasks/VOL-007.md) Hide read-only volumes (mounted .dmg images, write-protected cards) from the volume list
-- [ ] [VOL-008](backlog/tasks/VOL-008.md) Eject button per volume: on refusal, name the holder in human language (DiskArbitration dissenter)
+- [x] [VOL-008](backlog/tasks/VOL-008.md) Eject button per volume: on refusal, name the holder in human language (DiskArbitration dissenter)
