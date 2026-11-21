@@ -21,6 +21,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   switching back or closing the popover, and each disclosure's reads and `nettop` run
   only while it is expanded. See TECHSPEC §14.
 
+### Fixed
+
+- Fixed the same crash class in the category scanner (SCAN-009): releasing the
+  scanner while one of its state-queue blocks was still running could run its
+  teardown on that queue, and libdispatch aborted the app ("dispatch_sync called on
+  queue already owned by current thread"). Its state now lives behind an unfair lock
+  like the largest-files scanner's (SCAN-008), so teardown is safe from any thread.
+  Covered by a regression test that reproduces the exact release path.
+
 ## [1.1.0] - 2026-11-21
 
 ### Added
