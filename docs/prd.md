@@ -1,6 +1,6 @@
 # PRD — justStats (macOS menu bar disk monitor)
 
-Status: v1 build-complete (Phases 0-6 shipped; Phase 7 release QA in progress). Last updated: 2026-07-05.
+Status: v1 build-complete (Phases 0-6 shipped; Phase 7 release QA in progress); network monitoring (phase 18) added 2026-11-21. Last updated: 2026-11-21.
 
 ## Problem Statement
 
@@ -24,7 +24,7 @@ Reference product: [diskbar.app](https://diskbar.app) (menu bar disk monitor for
 ## Non-Goals (v1)
 
 - RAM monitoring (planned v2).
-- Network monitoring (planned v2).
+- A menu bar item or any background work for network monitoring (the network section exists only inside the popover, see Scope Boundary).
 - Whole-volume actions: format, rename, encrypt, etc. — only file-level actions (reveal, trash) and ejecting an external/network volume (FR17) are in scope, see Functional Requirements.
 - S.M.A.R.T./disk health diagnostics.
 - Historical usage graphs or trend tracking over time (only current-state category breakdown, not a timeline).
@@ -46,6 +46,8 @@ Reference product: [diskbar.app](https://diskbar.app) (menu bar disk monitor for
 - "Launch at Login" toggle.
 - Sparkle-based auto-update (self-signed EdDSA key, no Apple notarization required).
 - "Reclaimable space" section: a built-in, data-driven catalog of known cleanable items (tool caches, update leftovers) with size and a one-click Clean action; plus a "Copy AI prompt" button for deeper analysis outside the app (FR14–FR16). The app contains no AI and no network calls for this.
+
+- **Network tab** in the existing disk popover (phase 18, owner decisions of 2026-11-21; the popover opens on Disks): live down/up rates with a sparkline and since-boot totals (with a reset), plus lazy Interfaces and Top processes disclosures — Wi-Fi/tunnel/inactive interfaces, Internet status with one ICMP latency echo, local IP, DNS servers, and top processes by traffic via `nettop`. **No menu bar item. No public-IP lookup. No background work while the popover is closed** — the sampler starts only when the Network tab is selected and stops on switching back or on close; each disclosure's reads run only while it is expanded. The only network request is that single ICMP echo per expand/Refresh (the "no network calls except Sparkle" invariant otherwise stands). See TECHSPEC §14.
 
 **Explicitly out of scope for v1:** see Non-Goals above.
 
@@ -70,6 +72,7 @@ Reference product: [diskbar.app](https://diskbar.app) (menu bar disk monitor for
 | FR15 | Each green-tier item has a **Clean** action that runs after an inline confirmation naming what will happen and the size freed. The action is either deleting a known directory (permanently, not via Trash) or running one fixed command from a compiled-in allowlist (the exact command is shown in the confirmation). Yellow-tier items are listed with an explanation but have no one-click action. Errors are shown in the row. |
 | FR16 | A "Still short on space? Copy AI prompt" action copies an English prompt to the clipboard for use with an external AI assistant. A preview is shown before copying. The prompt carries the volume's free space, the category breakdown, the items from FR14 and a fixed safety preamble (read-only first, confirm before any deletion). The app itself performs no AI calls. |
 | FR17 | External and network volume rows offer an **Eject** button (never the boot volume or internal fixed disks). It unmounts the volume — and, for a multi-volume stick, every volume on the same disk, like Finder — via DiskArbitration, with no admin rights. On success the row leaves the list without reopening the popover. If the system refuses because something is using the volume, an inline panel under the row names the volume and the holder in plain English (a built-in dictionary of known system holders, e.g. Spotlight indexing, Time Machine backup; an unknown holder is shown honestly as the process name and PID) and offers **Retry** and **Force Eject**. Force Eject always warns first that data the holder is writing can be lost. |
+| FR18 | The popover has a **Network** tab (a Disks | Network switch under the header; it always opens on Disks): current down/up rates (arrow + label + color, never color alone), a sparkline of the last 180 real samples (an empty track while none exist), since-boot totals with a Reset button (relabelled "Since reset"), and two independently collapsible disclosures. Sampling runs only while the Network tab is shown. **Interfaces** lazily shows the Wi-Fi row (SSID/channel/RSSI where Location is granted, with its own rate), wired links and busy tunnels with rates, idle tunnels and down interfaces as muted lines, Internet status with one ICMP latency echo, Local IP and DNS servers; **Top processes** shows the apps with the most traffic. Collapsing, switching to Disks or closing the popover stops the respective work. There is no public-IP row and no menu bar item. |
 
 ## ADR-Candidate Decisions
 

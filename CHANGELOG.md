@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Network tab in the popover** (NET-001…005, PRD FR18) — a Disks | Network switch
+  under the header (the popover always opens on Disks); the Network tab shows live
+  download/upload rates with a 3-minute sparkline and since-boot totals (with a Reset).
+  Two independent lazy disclosures, Interfaces and Top processes, show the Wi-Fi network (name needs Location access, requested only on the
+  first expand; without it the row shows the interface and a grant button), active
+  tunnels with their own rates, inactive interfaces, Internet status with one ICMP
+  latency echo, local IP, DNS servers, and the top apps by traffic (via `nettop`).
+  No menu bar item and no public-IP lookup. Nothing network-related runs unless
+  the Network tab is open: the sampler starts when the tab is selected and stops on
+  switching back or closing the popover, and each disclosure's reads and `nettop` run
+  only while it is expanded. See TECHSPEC §14.
+
 ## [1.1.0] - 2026-11-21
 
 ### Added
