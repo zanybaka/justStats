@@ -172,3 +172,5 @@ sequentially (NET-001 → 005); each is independently testable.
 - [x] [NET-003](backlog/tasks/NET-003.md) Expanded details: interfaces and connection info, lazy on expand
 - [x] [NET-004](backlog/tasks/NET-004.md) Top processes by traffic via nettop, only while expanded and open
 - [x] [NET-005](backlog/tasks/NET-005.md) NFR measurement for the net section + PRD/CHANGELOG sync
+- [ ] [NET-006](backlog/tasks/NET-006.md) Pin the open-popover cost of the Network tab on real hardware
+- [ ] [NET-007](backlog/tasks/NET-007.md) Popover arrow glitch near full screen height
