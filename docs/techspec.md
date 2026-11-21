@@ -11,7 +11,8 @@ justStats.app
 ├── App (AppKit lifecycle, NSStatusItem, NSPopover host)
 ├── Kit (shared helpers: extensions, formatting, UserDefaults wrapper — pattern borrowed from Stats' Kit)
 └── Modules
-    └── Disk (v1; RAM/Net modules added in v2 following the same shape)
+    ├── Net (phase 18; sampler-on-open, see §14)
+    └── Disk (v1; RAM module added later following the same shape)
         ├── IconController   — cheap periodic boot-volume statfs → icon color
         ├── VolumeEnumerator — FileManager + DiskArbitration metadata (on-demand)
         ├── CategoryScanner  — Spotlight (NSMetadataQuery) category + largest-files (on-demand)
@@ -107,12 +108,28 @@ This is a default, not exhaustively validated — flagged for adjustment once re
 
   **Stats side-by-side comparison — MANUAL FOLLOW-UP, not done here.** exelban/stats is **not installed** on the measurement machine, so the PRD NFR1–NFR3 "≤ Stats disk-module footprint" comparison could **not** be run and no comparison numbers are recorded (deliberately not fabricated). To close the PRD open question, a human should install Stats with only its Disk module enabled on the same Mac and compare its idle CPU / idle memory against the justStats baseline above. On current evidence justStats' absolute idle footprint is already very low (idle CPU ≈ 0%), so the comparison is expected to pass, but it remains unverified until run.
 
+  **Network section (NET-005) — measured 2026-11-22.** Same machine and OS as the pinned baseline (Apple M1 Pro, macOS 15.7.5 (24G624)), same method (`-configuration Release`, `CODE_SIGNING_ALLOWED=NO`, launched directly, 8 s settle, then `top -l 61 -s 1 -pid <pid>`; the first `top` sample is cumulative and dropped, leaving 60 one-second samples; popover never opened). A same-session A/B: the pre-network commit (`cebd2ef`) versus this change, one 60 s run each.
+
+  | Build (popover closed) | CPU, 60 samples | MEM (`top`) | `footprint` | Threads |
+  |---|---|---|---|---|
+  | Before network (`cebd2ef`) | 59 × 0.0%, one 44.1% sample at the ~30 s mark (avg 0.74%) | 9.78–9.83 MB for 19 samples, 12 MB for the other 41 | 12 MB | 5–7 |
+  | With network section | 59 × 0.0%, one 0.1% sample (avg 0.002%, max 0.1%) | 10 MB, flat across all 60 samples | 10 MB | 5–6 |
+  | **Pinned baseline (2026-07-05)** | 32 of 34 samples 0.0%, max 0.2% | ≈ 9.9 MB | — | 4–5 |
+
+  **Closed-popover delta: none attributable to the network section.** The new build sits at the baseline's numbers (idle CPU 0.0% in 59 of 60 samples, the one exception 0.1% against the baseline's 0.2% max; 10 MB footprint against 9.9 MB pinned). By construction nothing network-related exists while the popover is closed: no sampler timer, no `nettop`, no CoreWLAN/Location access (`NetSamplerTests.testNoTimerExistsOrFiresUntilStart`, coordinator spy). Caveat, stated plainly: the *pre-network* build showed one 44.1% sample and a 12 MB footprint in this run; that is a transient of the unchanged baseline code (it appears in the build without the net module, near the 30 s mark, not reproduced in the second run), so the A/B is "within run-to-run noise", not "the new build is leaner". n = 1 run per build.
+
+  **Expanded state — cost of the pieces that run (popover open, section expanded).** Not measured through the GUI (the status item cannot be driven headlessly here), so the components were measured and the duty cycle derived:
+  - **`nettop` pass** (`-P -L 1 -n -k …`, 20 passes, the real argument list): **10.7 ms CPU per pass** (user+sys), 10–18 ms wall (avg 12), 4.7 MB peak RSS for the child, 1.4 KB of CSV. At the 4 s interval that is **≈ 0.27% of one core on average**, as a burst of ≈ 11 ms every 4 s; the child exists only for that pass.
+  - **Sampler tick** (sysctl `NET_RT_IFLIST2` read of 23 interfaces + `NetThroughputEngine.ingest`, 5000 ticks, in the *Debug* unit-test build, so an upper bound): **≈ 405 µs CPU per tick**, i.e. **≈ 0.04% of one core at 1 Hz**, only while the popover is open.
+  - **ICMP echo + metadata read:** once per expand/Refresh; the echo has a 2 s timeout and measured 10 ms round trip on this network; the CoreWLAN/SystemConfiguration reads are one-shot.
+  - **Not measured:** phys footprint with the popover open and the section expanded, and CPU of the SwiftUI sparkle redraw once per second. Both run only while the popover is on screen and are covered by no number here; a manual `top` pass with the section expanded is the follow-up if the owner wants them pinned.
+
 - **NFR3 (launch time):** `NSStatusItem` creation and icon rendering happen at app launch before any Spotlight/enumeration work — nothing blocks icon appearance. The status item and its first `statfs`-driven icon refresh are created synchronously in `applicationDidFinishLaunching` (see `justStats/App/AppDelegate.swift`) before the popover/enumeration seams are wired, so the glanceable icon is present as soon as the process is up (measured cold-launch-to-pid ≈ 0.12 s above). A precise on-screen "status item visible" timestamp requires a GUI/accessibility observation and is a manual follow-up.
 - **Reliability — external/network volumes:** all `statfs`/Spotlight calls for non-internal volumes run off the main thread (`DispatchQueue.global(qos: .utility)`); a hung SMB mount can only delay that specific row's data, never the popover's initial render or the internal-disk rows.
 - **Security — Full Disk Access:** requested **lazily**, not at first launch. The app attempts Spotlight/category queries normally; if a volume's results come back empty/incomplete in a way consistent with a permissions block, the popover shows an inline notice ("Grant Full Disk Access for complete data") with a button opening `x-apple.systempreferences:com.apple.preference.security?Privacy_AllFiles` directly.
 - **Security — Move to Trash:** uses `FileManager.trashItem(at:resultingItemURL:)` (recoverable via macOS Trash, never `removeItem` / permanent delete), gated by an inline confirmation dialog before the call (PRD FR8).
 - **Security — Eject:** unmounting uses DiskArbitration with the current user's rights (no sudo, no helper, no shell, no `lsof`). Force Eject is a second explicit tap after a data-loss warning (PRD FR17). Process names/PIDs of other programs are shown in the UI only, never logged or sent anywhere.
-- **Data at rest:** no telemetry, no network calls except Sparkle's update check and GitHub Release asset download — nothing else leaves the machine.
+- **Data at rest:** no telemetry, no network calls except Sparkle's update check and GitHub Release asset download, plus the single ICMP echo behind the network section's expanded "Internet" row (§14: one echo per expand or Refresh, never periodic, no public-IP lookup) — nothing else leaves the machine.
 
 ## 8. UI/Layout Notes (grounded in verified sources, not invented)
 
@@ -239,3 +256,44 @@ The preview dialog shows the full text before it is copied; file paths in the pr
 **Timing.** A busy volume takes about 11 s to refuse (measured), so the row shows an "Ejecting…" spinner for that long.
 
 - **ADR-CANDIDATE: Eject via DiskArbitration `DADiskUnmount`, naming the holder through the dissenter's process ID (resolved at runtime, no `lsof`/sudo).** Promoted to ADR: `ADR/007-diskarbitration-eject-with-holder.md` (Accepted). Rationale and alternatives: `docs/prd.md`.
+
+## 14. Network Monitoring (NET-001…005, phase 18)
+
+Owner decisions of 2026-11-21: **no menu bar item**; the section lives in the existing disk popover, as a **Network tab** (Disks | Network switch under the header; the popover always opens on Disks, so a fresh open never touches the network code); **no public-IP row**; **no network-related work while the popover is closed**. Source mechanics were verified against exelban/stats `Modules/Net/readers.swift` (MIT, read 2026-11-21).
+
+**Two-tier note (ADR-002).** The net module keeps the two-tier shape with *sampler-on-open as its only live tier*: there is no icon-tier equivalent, so nothing network-related exists at launch or at idle. `NetSampler` is created idle by `VolumeListPopoverCoordinator`; its timer is created in `start()` when the Network tab is selected (`NetworkSectionViewModel.activate()` via `PopoverTabsModel.select`) and cancelled in `stop()` when the user switches back to Disks or the popover closes (`popoverDidClose`, every close route). The two disclosures — **Interfaces** and **Top processes**, expanded independently — are a third, lazier level: nothing is read until the respective disclosure is expanded, and all of it stops on collapse, tab switch or popover close.
+
+### 14.1 Layout (`justStats/Modules/Net/`)
+
+| File | Role |
+|---|---|
+| `NetCounters.swift` | `InterfaceCounters`, the `NetCounterSource` seam, `NetInterfaceKind` (name-prefix filter), `SysctlNetCounterSource` (thin sysctl layer) |
+| `NetThroughputEngine.swift` | Pure core: delta, clamp, plausibility cutoff, physical/virtual split, since-boot totals, reset offset |
+| `NetSampler.swift` | `RingBuffer` (180 samples), `NetTickScheduling` seam (real `Timer`), `NetworkSampling` lifecycle protocol, `NetSampler` |
+| `NetworkCardContent.swift`, `NetworkSectionView.swift`, `NetworkSectionViewModel.swift` | Card, sparkline, the two disclosures, `PopoverTabsModel`; pure state → content mapping (pattern of `VolumeRowView.Content`) |
+| `NetworkMetadata.swift`, `NetworkDetails.swift` | Wi-Fi / local IP / DNS / ICMP / Location seams and production implementations; details state mapping and `NetworkDetailsModel` |
+| `NettopParser.swift`, `ProcessTraffic.swift` | nettop CSV parser, process runner, ranking, `ProcessTrafficModel` |
+
+### 14.2 Sampler (NET-001)
+
+- **Counters:** `sysctl([CTL_NET, PF_ROUTE, 0, 0, NET_RT_IFLIST2, 0])`, parsing `RTM_IFINFO2` (`if_msghdr2`) for the 64-bit `ifi_ibytes` / `ifi_obytes`, plus `ifi_baudrate` and `IFF_UP|IFF_RUNNING`. One read costs microseconds and touches no network.
+- **Rates** are deltas against the previous totals divided by the measured elapsed time, clamped to ≥ 0 (counter reset). A one-shot jump above `baudrate / 8 × elapsed × 1.5` (fixed 5 GB/s cap when the driver reports no link rate) is zeroed rather than plotted, as in Stats.
+- **Physical vs virtual:** names starting `utun ipsec ppp tun tap gif stf wg` are virtual — they keep their own counters and rows and are never merged into the physical aggregate. `lo*` is loopback and excluded from both. Headline rates and since-boot totals cover physical interfaces only.
+- **Totals:** since-boot totals are the sum of the monotonic physical counters (no accumulation work). Reset stores an offset (in memory; a reboot restarts the counters, and an interface that disappears can lower the sum, in which case the offset is rebased so the total never goes negative).
+- **Baseline:** `start()` takes one baseline read (so totals show immediately); the first rate needs a second read one second later. `stop()` clears the ring buffer and forgets the previous counters so a reopen minutes later never produces one giant rate or a chart with a gap. The chart plots real samples only — an empty buffer renders an explicit empty track.
+
+### 14.3 Expanded details (NET-003)
+
+- **Wi-Fi:** CoreWLAN (`CWWiFiClient.shared().interface()`): SSID, channel, RSSI. **SSID needs Location authorization on modern macOS**, so Location is requested lazily on the *first expand* (never at launch; `NSLocationWhenInUseUsageDescription` in `Info.plist`), following the SCAN-006 Full Disk Access pattern: without the permission the row shows the interface name (plus channel/RSSI when CoreWLAN returns them) and a bordered grant button — the system prompt while undetermined, the `Privacy_LocationServices` pane once denied. It never blocks. The app never reads the device location.
+- **Rates per interface:** the Wi-Fi row shows its own live down/up rate; other wired `en*` links that have carried traffic get a row with rates. **Tunnels:** virtual interfaces carrying traffic right now get rows with their own rates; tunnels that are up but idle (the system `utun*` ones) collapse into one muted `Idle tunnels: …` line. **Down interfaces:** one muted line (`Inactive: en1, en2 …`), never polled.
+- **Connection rows:** Internet (one ICMP echo, below), Local IP (System Configuration `State:/Network/Global/IPv4` → primary interface address), DNS servers (`State:/Network/Global/DNS`). No public-IP row, ever.
+- **ICMP:** one echo request to 1.1.1.1 over an unprivileged `SOCK_DGRAM`/`IPPROTO_ICMP` socket (no root, no helper, 2 s timeout). Exactly one per expand or Refresh; no periodic ping. This is the only network request the module makes (`NetworkModuleSurfaceTests` scans the module sources for any other network API).
+- **Threading:** metadata read and echo run off-main (`Task.detached(priority: .utility)`) and are generation-guarded: collapse/close invalidates the generation, a cancelled expand never sends the echo, and a late result is never published.
+
+### 14.4 Top processes (NET-004)
+
+While — and only while — the Top processes disclosure is expanded, the Network tab is shown **and** the popover is open, `ProcessTrafficModel` runs `/usr/bin/nettop -P -L 1 -n -k <excluded columns>` (env `NSUnbufferedIO=YES`, 5 s timeout) every 4 s. Cancelling the loop (collapse, tab switch or close) terminates the process immediately. The CSV is parsed header-driven (`name.pid`, `bytes_in`, `bytes_out`, quoting honoured); rates are deltas between consecutive passes (first pass shows "Measuring…"), friendly names come from `NSRunningApplication`, rows are ranked by `max(down, up)` and truncated to 5. A missing/failing/timed-out nettop or unparsable output shows a single muted notice and is retried on the next interval silently (no logging). nettop is the only heavyweight piece of the module, which is why it sits in the most lazy corner.
+
+### 14.5 Verification
+
+Unit tests: `NetThroughputTests` (delta/clamp/cutoff/filter/totals/reset, no timer before `start()`), `NetworkSectionTests` (card mapping loaded/empty/reset, chart honesty, coordinator start-on-open/stop-on-close spy, expand/collapse/close spawn-and-terminate spies, one metadata read + one echo per expand/Refresh), `NetworkDetailsTests` (permission → row mapping, down-interface row, lazy Location, cancellation, network-API surface scan), `NettopTests` (parser fixtures, ranking, rates, failure path). SwiftUI's accessibility tree is not materialised without a live AX client, so — as in `RowAccessibilityLabelTests` — the label sources (`NetworkCardContent.accessibilitySummary`, `NetworkDisclosureContent`) are asserted instead of walking the view tree; the visual pass (light/dark; collapsed, expanded, Location-denied, empty-buffer) was rendered through `NSHostingView` to PNG.

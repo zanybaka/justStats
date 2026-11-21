@@ -106,6 +106,14 @@ extension View {
 struct VolumeListView: View {
     @ObservedObject var model: VolumeListViewModel
 
+    /// Which tab is shown, and the Network tab's model. Defaults to a Disks-only popover
+    /// (previews, tests that only exercise the disk list). The popover always opens on
+    /// Disks, so a fresh open never starts any network work.
+    @ObservedObject var tabs = PopoverTabsModel(network: nil)
+
+    /// The Network tab's model, if the popover has one.
+    var network: NetworkSectionViewModel? { tabs.network }
+
     /// Opens the Full Disk Access pane when a row's SCAN-006 notice button is tapped.
     /// Defaults to the production `NSWorkspace` opener; injectable so the view can be
     /// built in previews/tests without launching System Settings.
@@ -149,49 +157,56 @@ struct VolumeListView: View {
                 onRefresh: { model.refresh() },
                 onOpenSettings: openSettings
             )
-            if model.rows.isEmpty {
-                // Practically unreachable (the boot volume always enumerates),
-                // but never render an unexplained empty popover.
-                Text("No volumes found")
-                    .foregroundStyle(.secondary)
+            if tabs.showsTabs {
+                PopoverTabPicker(tabs: tabs)
             }
-            // `displayRows` applies the sort toggle over the enumeration order
-            // without disturbing the model's canonical row order (FR9).
-            ForEach(model.displayRows) { row in
-                switch row {
-                case .loaded(let volume):
-                    VolumeRowView(
-                        volume: volume,
-                        categoryState: model.categoryStates[volume.mountURL],
-                        thresholdConfiguration: thresholdConfiguration,
-                        openFullDiskAccessSettings: openFullDiskAccessSettings,
-                        ejectControls: ejectControls(for: row)
-                    )
-                case .pending(let volume):
-                    PendingVolumeRowView(volume: volume)
-                case .unavailable(let volume):
-                    UnavailableVolumeRowView(volume: volume, ejectControls: ejectControls(for: row))
+            if tabs.selected == .network, let network = tabs.network {
+                NetworkSectionView(model: network)
+            } else {
+                if model.rows.isEmpty {
+                    // Practically unreachable (the boot volume always enumerates),
+                    // but never render an unexplained empty popover.
+                    Text("No volumes found")
+                        .foregroundStyle(.secondary)
                 }
+                // `displayRows` applies the sort toggle over the enumeration order
+                // without disturbing the model's canonical row order (FR9).
+                ForEach(model.displayRows) { row in
+                    switch row {
+                    case .loaded(let volume):
+                        VolumeRowView(
+                            volume: volume,
+                            categoryState: model.categoryStates[volume.mountURL],
+                            thresholdConfiguration: thresholdConfiguration,
+                            openFullDiskAccessSettings: openFullDiskAccessSettings,
+                            ejectControls: ejectControls(for: row)
+                        )
+                    case .pending(let volume):
+                        PendingVolumeRowView(volume: volume)
+                    case .unavailable(let volume):
+                        UnavailableVolumeRowView(volume: volume, ejectControls: ejectControls(for: row))
+                    }
+                }
+                // The largest-files section sits below the volume rows (TECHSPEC §8 layout
+                // point 3), scoped to the boot volume by default. Renders nothing until a
+                // volume is scoped (`.idle`). The Move-to-Trash confirm state and any inline
+                // error come from the model, and the row's Trash actions drive the model's
+                // confirm-state machine (ACT-002).
+                LargestFilesSection(
+                    state: model.largestFilesState,
+                    volumeName: model.largestFilesVolumeName,
+                    reveal: revealInFinder,
+                    pendingTrashURL: model.pendingTrashConfirmationURL,
+                    trashErrorMessages: model.trashErrorMessages,
+                    onTrashRequest: { model.requestTrashConfirmation(for: $0) },
+                    onTrashConfirm: { model.confirmTrash(for: $0) },
+                    onTrashCancel: { model.cancelTrashConfirmation(for: $0) },
+                    onHide: { model.hide($0) },
+                    hiddenFiles: model.hiddenLargestFiles,
+                    onUnhide: { model.unhide($0) },
+                    onUnhideAll: { model.clearHiddenFiles() }
+                )
             }
-            // The largest-files section sits below the volume rows (TECHSPEC §8 layout
-            // point 3), scoped to the boot volume by default. Renders nothing until a
-            // volume is scoped (`.idle`). The Move-to-Trash confirm state and any inline
-            // error come from the model, and the row's Trash actions drive the model's
-            // confirm-state machine (ACT-002).
-            LargestFilesSection(
-                state: model.largestFilesState,
-                volumeName: model.largestFilesVolumeName,
-                reveal: revealInFinder,
-                pendingTrashURL: model.pendingTrashConfirmationURL,
-                trashErrorMessages: model.trashErrorMessages,
-                onTrashRequest: { model.requestTrashConfirmation(for: $0) },
-                onTrashConfirm: { model.confirmTrash(for: $0) },
-                onTrashCancel: { model.cancelTrashConfirmation(for: $0) },
-                onHide: { model.hide($0) },
-                hiddenFiles: model.hiddenLargestFiles,
-                onUnhide: { model.unhide($0) },
-                onUnhideAll: { model.clearHiddenFiles() }
-            )
             // Integrated footer (UX-009, TECHSPEC §8): version · GitHub · Quit, drawn
             // from the same `AboutInfo`/`AboutInfo.quit` the Settings About section uses
             // — one source of truth. A hairline divider separates it from the content.
@@ -862,5 +877,20 @@ struct UnavailableVolumeRowView: View {
         )
         .contentShape(RoundedRectangle(cornerRadius: DiskMetrics.cardCornerRadius, style: .continuous))
         .onHover { isHovering = $0 }
+    }
+}
+
+
+/// Segmented Disks | Network switch under the header (only when the Network tab exists).
+struct PopoverTabPicker: View {
+    @ObservedObject var tabs: PopoverTabsModel
+
+    var body: some View {
+        Picker("Section", selection: Binding(get: { tabs.selected }, set: { tabs.select($0) })) {
+            ForEach(PopoverTab.allCases) { Text($0.rawValue).tag($0) }
+        }
+        .pickerStyle(.segmented)
+        .labelsHidden()
+        .accessibilityLabel("Popover section")
     }
 }

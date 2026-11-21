@@ -30,8 +30,8 @@ push (`.github/workflows/ci.yml`). Manual QA and accessibility checklists live i
 
 ## Architecture
 
-AppKit shell (`NSStatusItem` + `NSPopover`) hosting SwiftUI content. One disk module
-today; the layout leaves room for RAM/network modules later.
+AppKit shell (`NSStatusItem` + `NSPopover`) hosting SwiftUI content. A disk module and a
+network section (`Modules/Net`); the layout leaves room for a RAM module later.
 
 - **Icon tier** — a ~30 s timer does a single `statfs` on the boot volume for the
   icon color. That's the only always-on work (≈0.0% idle CPU).
@@ -42,7 +42,13 @@ today; the layout leaves room for RAM/network modules later.
   recursive walk. A cascading `kMDItemFSSize > floor` predicate keeps the largest-files
   query fast; sizes are then resolved to **on-disk (allocated)** bytes so sparse files
   (disk images, VM bundles) aren't overstated. Results are cached in memory for 5 minutes.
-- No telemetry. Nothing leaves the machine.
+- **Network tab** — the popover opens on Disks; the throughput sampler (`sysctl` interface
+  counters, 1 s) runs only while the Network tab is shown, so nothing network-related runs
+  at idle or on a default open. The Interfaces and Top processes disclosures are lazier
+  still: Wi-Fi/DNS/IP reads plus one ICMP echo, and a `nettop` poll, happen only while the
+  respective one is expanded. See TECHSPEC §14.
+- No telemetry. Nothing leaves the machine (the one ICMP echo behind the expanded
+  "Internet" row aside).
 
 Design docs: [`docs/prd.md`](docs/prd.md), [`docs/techspec.md`](docs/techspec.md),
 [`docs/architecture-draft.md`](docs/architecture-draft.md), and the decision records in
@@ -56,6 +62,7 @@ justStats/
   Kit/            shared helpers (thresholds, byte formatting, layout)
   Modules/
     Disk/         enumeration, Spotlight scanners, cache, views
+    Net/          throughput sampler (on popover open only), network section, nettop processes
     Settings/     settings window, About section
     Updates/      SoftwareUpdating seam (see auto-update below)
 justStatsTests/   XCTest unit tests

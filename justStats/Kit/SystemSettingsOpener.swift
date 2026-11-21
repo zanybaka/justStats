@@ -23,6 +23,11 @@ enum SystemSettingsLink {
     static let fullDiskAccess = URL(
         string: "x-apple.systempreferences:com.apple.preference.security?Privacy_AllFiles"
     )!
+
+    /// The Location Services privacy pane (NET-003): the grant path for the Wi-Fi SSID.
+    static let locationServices = URL(
+        string: "x-apple.systempreferences:com.apple.preference.security?Privacy_LocationServices"
+    )!
 }
 
 /// Production opener: hands the deep link to `NSWorkspace`, which launches System
@@ -32,5 +37,12 @@ enum SystemSettingsLink {
 struct SystemSettingsOpener: FullDiskAccessSettingsOpening {
     func openFullDiskAccessSettings() {
         NSWorkspace.shared.open(SystemSettingsLink.fullDiskAccess)
+    }
+}
+
+extension SystemSettingsOpener {
+    /// Opens the Location Services pane (NET-003).
+    func openLocationSettings() {
+        NSWorkspace.shared.open(SystemSettingsLink.locationServices)
     }
 }
