@@ -164,12 +164,13 @@ struct VolumeListView: View {
                         volume: volume,
                         categoryState: model.categoryStates[volume.mountURL],
                         thresholdConfiguration: thresholdConfiguration,
-                        openFullDiskAccessSettings: openFullDiskAccessSettings
+                        openFullDiskAccessSettings: openFullDiskAccessSettings,
+                        ejectControls: ejectControls(for: row)
                     )
                 case .pending(let volume):
                     PendingVolumeRowView(volume: volume)
                 case .unavailable(let volume):
-                    UnavailableVolumeRowView(volume: volume)
+                    UnavailableVolumeRowView(volume: volume, ejectControls: ejectControls(for: row))
                 }
             }
             // The largest-files section sits below the volume rows (TECHSPEC §8 layout
@@ -202,6 +203,21 @@ struct VolumeListView: View {
         .frame(width: PopoverLayout.contentWidth, alignment: .leading)
         .accessibilityElement(children: .contain)
         .accessibilityLabel("justStats disk overview")
+    }
+
+    /// Eject wiring for a row (VOL-008), or `nil` when the row offers none — the boot
+    /// volume, internal fixed disks and pending rows get neither button nor panel.
+    private func ejectControls(for row: VolumeListViewModel.Row) -> EjectControls? {
+        guard row.isEjectable else { return nil }
+        let url = row.id
+        return EjectControls(
+            state: model.ejectStates[url],
+            onEject: { model.requestEject(for: url) },
+            onRetry: { model.requestEject(for: url) },
+            onForce: { model.requestForceEject(for: url) },
+            onConfirmForce: { model.confirmForceEject(for: url) },
+            onCancel: { model.cancelEject(for: url) }
+        )
     }
 }
 
@@ -348,6 +364,8 @@ struct VolumeRowView: View {
     /// the production opener so the row is usable standalone (previews, and the
     /// list's own default) without wiring a seam every time.
     var openFullDiskAccessSettings: () -> Void = { SystemSettingsOpener().openFullDiskAccessSettings() }
+    /// Eject button + inline panel wiring (VOL-008); `nil` on rows that never offer eject.
+    var ejectControls: EjectControls?
 
     /// What the row draws below the name line, derived purely from `categoryState`.
     /// Extracted as a plain enum so the state → presentation mapping is unit-testable
@@ -406,28 +424,37 @@ struct VolumeRowView: View {
         let percentText = Self.percentUsedText(usedFraction: volume.usedFraction)
         VStack(alignment: .leading, spacing: DiskMetrics.rowSpacing) {
             HStack(alignment: .firstTextBaseline, spacing: DiskMetrics.inlineSpacing) {
-                DiskGlyph(kind: volume.kind, tint: accent)
-                    .imageScale(.large)
-                Text(volume.name)
-                    .font(.system(size: DiskMetrics.nameFontSize, weight: .medium))
-                    .lineLimit(1)
-                    .truncationMode(.middle)
-                Spacer(minLength: DiskMetrics.inlineSpacing)
-                Text(percentText)
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
-                    .monospacedDigit()
-                    .fixedSize()
+                // Glyph + name + "% used" collapse into one VoiceOver element carrying the
+                // full usage sentence so the row always has a coherent spoken identity —
+                // including the `.categoryBar` case, whose used/total figures otherwise
+                // live only in the (bar-owned) legend. The Eject button sits beside it,
+                // outside the collapsed element, so it stays a separate VoiceOver control.
+                HStack(alignment: .firstTextBaseline, spacing: DiskMetrics.inlineSpacing) {
+                    DiskGlyph(kind: volume.kind, tint: accent)
+                        .imageScale(.large)
+                    Text(volume.name)
+                        .font(.system(size: DiskMetrics.nameFontSize, weight: .medium))
+                        .lineLimit(1)
+                        .truncationMode(.middle)
+                    Spacer(minLength: DiskMetrics.inlineSpacing)
+                    Text(percentText)
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                        .monospacedDigit()
+                        .fixedSize()
+                }
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel(Self.headerAccessibilityLabel(
+                    volumeName: volume.name, free: freeText, used: usedText, total: totalText,
+                    isRunningLow: isRunningLow
+                ))
+                if let ejectControls, ejectControls.state == nil {
+                    EjectButton(volumeName: volume.name, isRevealed: isHovering, action: ejectControls.onEject)
+                }
             }
-            // The glyph + name + "% used" line is several visual pieces; collapse it into
-            // one VoiceOver element carrying the full usage sentence so the row always has
-            // a coherent spoken identity — including the `.categoryBar` case, whose
-            // used/total figures otherwise live only in the (bar-owned) legend.
-            .accessibilityElement(children: .ignore)
-            .accessibilityLabel(Self.headerAccessibilityLabel(
-                volumeName: volume.name, free: freeText, used: usedText, total: totalText,
-                isRunningLow: isRunningLow
-            ))
+            if let ejectControls, let state = ejectControls.state {
+                EjectPanelView(volumeName: volume.name, state: state, controls: ejectControls)
+            }
             switch content {
             case .categoryBar(let breakdown):
                 CategoryBarView(breakdown: breakdown, volumeName: volume.name)
@@ -793,23 +820,39 @@ struct PendingVolumeRowView: View {
 }
 
 /// Muted row for a deferred volume whose capacity read failed or timed out
-/// (hung mount — VOL-002). The volume stays listed; only its sizes are unknown.
+/// (hung mount — VOL-002). The volume stays listed; only its sizes are unknown. It
+/// still offers Eject (VOL-008): a hung share is exactly the mount worth unmounting.
 struct UnavailableVolumeRowView: View {
     let volume: DeferredVolume
+    var ejectControls: EjectControls?
+
+    @State private var isHovering = false
 
     var body: some View {
-        HStack(spacing: DiskMetrics.inlineSpacing) {
-            DiskGlyph(kind: volume.kind, tint: Color(nsColor: .tertiaryLabelColor))
-                .imageScale(.large)
-            Text(volume.name)
-                .font(.system(size: DiskMetrics.nameFontSize, weight: .medium))
-                .lineLimit(1)
-                .truncationMode(.middle)
-                .foregroundStyle(.secondary)
-            Spacer(minLength: DiskMetrics.inlineSpacing)
-            Text("Unavailable")
-                .font(.subheadline)
-                .foregroundStyle(.tertiary)
+        VStack(alignment: .leading, spacing: DiskMetrics.rowSpacing) {
+            HStack(spacing: DiskMetrics.inlineSpacing) {
+                HStack(spacing: DiskMetrics.inlineSpacing) {
+                    DiskGlyph(kind: volume.kind, tint: Color(nsColor: .tertiaryLabelColor))
+                        .imageScale(.large)
+                    Text(volume.name)
+                        .font(.system(size: DiskMetrics.nameFontSize, weight: .medium))
+                        .lineLimit(1)
+                        .truncationMode(.middle)
+                        .foregroundStyle(.secondary)
+                    Spacer(minLength: DiskMetrics.inlineSpacing)
+                    Text("Unavailable")
+                        .font(.subheadline)
+                        .foregroundStyle(.tertiary)
+                }
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel("\(volume.name), size unavailable")
+                if let ejectControls, ejectControls.state == nil {
+                    EjectButton(volumeName: volume.name, isRevealed: isHovering, action: ejectControls.onEject)
+                }
+            }
+            if let ejectControls, let state = ejectControls.state {
+                EjectPanelView(volumeName: volume.name, state: state, controls: ejectControls)
+            }
         }
         .padding(DiskMetrics.cardPadding)
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -817,7 +860,7 @@ struct UnavailableVolumeRowView: View {
             RoundedRectangle(cornerRadius: DiskMetrics.cardCornerRadius, style: .continuous)
                 .fill(.quaternary.opacity(0.5))
         )
-        .accessibilityElement(children: .ignore)
-        .accessibilityLabel("\(volume.name), size unavailable")
+        .contentShape(RoundedRectangle(cornerRadius: DiskMetrics.cardCornerRadius, style: .continuous))
+        .onHover { isHovering = $0 }
     }
 }

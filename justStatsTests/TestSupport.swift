@@ -360,3 +360,21 @@ extension XCTestCase {
         return defaults
     }
 }
+
+/// Test double for `VolumeEjecting` (VOL-008). Records every request and holds the
+/// completion so a test decides when — and with what — each eject finishes.
+final class MockVolumeEjector: VolumeEjecting {
+    private(set) var requests: [(url: URL, force: Bool)] = []
+    private var completions: [(EjectResult) -> Void] = []
+
+    func eject(volumeAt url: URL, force: Bool, completion: @escaping (EjectResult) -> Void) {
+        requests.append((url: url, force: force))
+        completions.append(completion)
+    }
+
+    /// Completes the oldest unanswered request with `result`.
+    func completeNext(with result: EjectResult) {
+        guard !completions.isEmpty else { return }
+        completions.removeFirst()(result)
+    }
+}

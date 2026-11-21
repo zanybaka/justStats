@@ -46,12 +46,16 @@ final class VolumeListPopoverCoordinator {
         // One cache for the coordinator's whole lifetime, so a reopen paints the last
         // scan's results instantly while a fresh scan runs (A2).
         let cache = ScanResultCache()
+        // One ejector too (VOL-008): its DiskArbitration session is created lazily and
+        // reused across opens.
+        let ejector = DiskArbitrationVolumeEjector()
         self.init(
             makeModel: {
                 VolumeListViewModel(
                     resolver: resolver,
                     scanner: scanner,
                     largestFilesScanner: largestFilesScanner,
+                    ejector: ejector,
                     cache: cache
                 )
             },
