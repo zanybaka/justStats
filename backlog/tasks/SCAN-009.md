@@ -5,6 +5,6 @@ Task Context: BUG, same class as SCAN-008 (found while fixing it). `SpotlightCat
 Task DOD: `deinit` contains no dispatch onto `stateQueue`; a regression test drives the release-from-stateQueue path via the existing seams and does not trap; existing category scanner tests stay green.
 Priority: P2
 Size: S
-Depends on: SCAN-008 (pattern and regression-test shape land with it)
+Depends on: SCAN-008
 Agent: auto
 Verify: xcodebuild test; regression test for deinit-on-stateQueue path passes
