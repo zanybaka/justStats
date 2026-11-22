@@ -174,4 +174,4 @@ sequentially (NET-001 → 005); each is independently testable.
 - [x] [NET-005](backlog/tasks/NET-005.md) NFR measurement for the net section + PRD/CHANGELOG sync
 - [x] [NET-006](backlog/tasks/NET-006.md) Pin the open-popover cost of the Network tab on real hardware
 - [c] [NET-007](backlog/tasks/NET-007.md) Popover arrow glitch near full screen height
-- [ ] [NET-008](backlog/tasks/NET-008.md) Cut the Network tab's idle cost (about 1% CPU while on screen)
+- [c] [NET-008](backlog/tasks/NET-008.md) Cut the Network tab's idle cost (about 1% CPU while on screen)
