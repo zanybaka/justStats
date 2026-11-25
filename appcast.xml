@@ -14,6 +14,26 @@
     <description>Update feed for justStats, a native macOS menu bar disk monitor.</description>
     <language>en</language>
     <item>
+      <title>Version 1.2.0</title>
+      <sparkle:version>10</sparkle:version>
+      <sparkle:shortVersionString>1.2.0</sparkle:shortVersionString>
+      <sparkle:minimumSystemVersion>15.0</sparkle:minimumSystemVersion>
+      <pubDate>Wed, 25 Nov 2026 21:41:52 +0300</pubDate>
+      <description><![CDATA[
+        <ul>
+          <li>New Network tab: live download and upload rates, interfaces, and top apps by traffic.</li>
+          <li>Fix a crash when the category scanner was released during a scan.</li>
+        </ul>
+      ]]></description>
+      <enclosure
+        url="https://github.com/zanybaka/justStats/releases/download/v1.2.0/justStats.zip"
+        sparkle:version="10"
+        sparkle:shortVersionString="1.2.0"
+        sparkle:edSignature="3wjqXf/6PTFGJ5M5OaHYDirOmG+jOOnUz5iELOZczXHK66Rfzp1W1m+PYA7lxo8ms7BWGp7Uxe7/4X6WoxtHCg=="
+        length="2225759"
+        type="application/octet-stream" />
+    </item>
+    <item>
       <title>Version 1.1.0</title>
       <sparkle:version>9</sparkle:version>
       <sparkle:shortVersionString>1.1.0</sparkle:shortVersionString>
