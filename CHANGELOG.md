@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.2.0] - 2026-11-25
+
 ### Added
 
 - **Network tab in the popover** (NET-001…005, PRD FR18) — a Disks | Network switch
@@ -185,5 +187,6 @@ First feature-complete build: a native macOS menu bar app that monitors disk hea
   justStats alone. A side-by-side comparison with exelban/stats was **not** run
   (Stats is not installed on the build machine) and remains a manual follow-up.
 
+[1.2.0]: https://github.com/zanybaka/justStats/releases/tag/v1.2.0
 [1.1.0]: https://github.com/zanybaka/justStats/releases/tag/v1.1.0
 [1.0.0]: https://github.com/zanybaka/justStats/releases/tag/v1.0.0
