@@ -80,6 +80,7 @@ These make explicit the human-only tails behind earlier `[x]` tasks (UPD-001, UP
 - [~] [REL-004](backlog/tasks/REL-004.md) Manual VoiceOver + keyboard-only accessibility pass
 - [x] [REL-005](backlog/tasks/REL-005.md) Cut first GitHub Release (v1.0.0)
 - [~] [REL-006](backlog/tasks/REL-006.md) Hardware/session-dependent manual QA (deferred from REL-003)
+- [ ] [REL-007](backlog/tasks/REL-007.md) Cut GitHub Release v1.2.0 and confirm the in-app update from 1.1.0
 
 ## Phase 9 — Post-v1 UX (from live-run feedback 2026-07-05)
 
